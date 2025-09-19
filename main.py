@@ -5,6 +5,7 @@ import json
 import shutil
 import signal
 import subprocess
+import threading
 from pathlib import Path
 
 import requests
@@ -25,6 +26,42 @@ MCP_CMD = [
 NGROK_API = "http://127.0.0.1:4040/api/tunnels"
 
 procs = []  # [(name, Popen)]
+_output_state = {}
+
+
+def _start_reader(proc, name):
+    state = {
+        "name": name,
+        "first_lines": [],
+        "lock": threading.Lock(),
+        "max_first": 100,
+    }
+
+    def reader():
+        try:
+            if not proc.stdout:
+                return
+            for raw_line in proc.stdout:
+                if raw_line == "":
+                    break
+                line = raw_line.rstrip("\r\n")
+                with state["lock"]:
+                    if len(state["first_lines"]) < state["max_first"]:
+                        state["first_lines"].append(line)
+                print(f"[{name}] {line}")
+        except Exception:
+            pass
+        finally:
+            try:
+                if proc.stdout and not proc.stdout.closed:
+                    proc.stdout.close()
+            except Exception:
+                pass
+            _output_state.pop(proc, None)
+
+    t = threading.Thread(target=reader, name=f"{name}-log-reader", daemon=True)
+    _output_state[proc] = state
+    t.start()
 
 
 def find_ngrok_exe() -> str:
@@ -69,6 +106,7 @@ def start(cmd, name):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            bufsize=1,
             # на Windows удобнее отдельная группа, чтобы корректно ловить Ctrl+C
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
             if os.name == "nt"
@@ -77,25 +115,31 @@ def start(cmd, name):
     except FileNotFoundError as e:
         print(f"[error] Не найден исполняемый файл для {name}: {e}")
         sys.exit(1)
+    _start_reader(p, name)
     procs.append((name, p))
     return p
 
 
 def tail(prefix, proc, lines=12, timeout=1.5):
     """Лёгкий вывод первых строк лога процесса."""
+    state = _output_state.get(proc)
+    if not state:
+        return
+
+    printed = 0
     t0 = time.time()
-    try:
-        for _ in range(lines):
-            if proc.poll() is not None:
-                break
-            if proc.stdout and not proc.stdout.closed:
-                line = proc.stdout.readline()
-                if line:
-                    print(f"[{prefix}] {line.rstrip()}")
-            if time.time() - t0 > timeout:
-                break
-    except Exception:
-        pass
+    while printed < lines:
+        with state["lock"]:
+            available = state["first_lines"][:lines]
+        if len(available) > printed:
+            for line in available[printed:]:
+                print(f"[{prefix}] {line}")
+            printed = len(available)
+        if printed >= lines or proc.poll() is not None:
+            break
+        if time.time() - t0 > timeout:
+            break
+        time.sleep(0.05)
 
 
 def ngrok_api_alive() -> bool:
