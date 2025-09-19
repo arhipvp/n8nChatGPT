@@ -108,13 +108,20 @@ def ngrok_api_alive() -> bool:
 
 def get_ngrok_url(timeout=20):
     t0 = time.time()
+    target_addr = f"127.0.0.1:{PORT}"
     while time.time() - t0 < timeout:
         try:
             r = requests.get(NGROK_API, timeout=2)
             r.raise_for_status()
             data = r.json()
             for t in data.get("tunnels", []):
-                if t.get("proto") == "https":
+                if t.get("proto") != "https":
+                    continue
+                config = t.get("config") or {}
+                addr = config.get("addr", "")
+                if "://" in addr:
+                    addr = addr.split("://", 1)[1]
+                if addr == target_addr:
                     return t.get("public_url")
         except Exception:
             pass
