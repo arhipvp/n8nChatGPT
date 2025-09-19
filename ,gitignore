@@ -1,0 +1,60 @@
+# Базовое для Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Виртуальные окружения
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Кэш и логи
+*.log
+*.pot
+*.mo
+*.cache
+*.tmp
+*.swp
+*.swo
+
+# Конфиги IDE
+.vscode/
+.idea/
+*.iml
+
+# Артефакты тестов
+.coverage
+.tox/
+.nox/
+.pytest_cache/
+htmlcov/
+*.coverage.*
+
+# Документация
+docs/_build/
+
+# Артефакты упаковки и дистрибуции
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+*.whl
+
+# Jupyter
+.ipynb_checkpoints
+*.ipynb_meta.json
+
+# OS специфичное
+.DS_Store
+Thumbs.db
+
+# MCP специфичное (если используете OpenAI MCP SDK)
+.mcp_cache/
