@@ -112,7 +112,7 @@
   "fields": ["Sentence", "Translation", "Hint", "Notes"],
   "templates": {
     "Card 1": {
-      "Front": "<div class=\"sentence\">{{Sentence}}</div>\n<div class=\"hint\">{{Hint}}</div>\n{{tts de_DE voices=AwesomeTTS:SentenceDE}}",
+      "Front": "<div class=\"sentence\">{{Sentence}}</div>\n<div class=\"hint\">{{Hint}}</div>\n{{tts de_DE voices=AwesomeTTS:Sentence}}",
       "Back": "{{FrontSide}}\n<hr id=\"answer\">\n<div class=\"translation\">{{Translation}}</div>\n<div class=\"notes\">{{Notes}}</div>"
     }
   },
@@ -120,7 +120,7 @@
 }
 ```
 
-> **Важно.** Клиент должен передавать значения полей строго в порядке `Sentence`, `Translation`, `Hint`, `Notes`. Шаблон фронта включает вызов `{{tts de_DE voices=AwesomeTTS:SentenceDE}}`, поэтому в Anki должен быть настроен профиль AwesomeTTS `SentenceDE`.
+> **Важно.** Клиент должен передавать значения полей строго в порядке `Sentence`, `Translation`, `Hint`, `Notes`. Шаблон фронта включает вызов `{{tts de_DE voices=AwesomeTTS:Sentence}}`, поэтому в Anki должен быть настроен профиль AwesomeTTS `Sentence`, который озвучивает поле `Sentence`.
 
 ### `anki.add_from_model`
 - **Назначение:** добавить заметки в указанную колоду с учётом текущих полей и шаблонов модели. Инструмент сам загружает структуру модели, нормализует `fields` и обрабатывает вложенные изображения.
@@ -181,7 +181,7 @@
 }
 ```
 
-> **Напоминание.** Даже если поля передаются объектом `fields`, сервер сопоставляет их с порядком `Sentence → Translation → Hint → Notes`, чтобы шаблон с TTS `{{tts de_DE voices=AwesomeTTS:SentenceDE}}` оставался валидным.
+> **Напоминание.** Даже если поля передаются объектом `fields`, сервер сопоставляет их с порядком `Sentence → Translation → Hint → Notes`, чтобы шаблон с TTS `{{tts de_DE voices=AwesomeTTS:Sentence}}` оставался валидным и продолжал озвучивать поле `Sentence` через профиль AwesomeTTS `Sentence`.
 
 ### `anki.note_info`
 - **Назначение:** получить подробные сведения о заметках по их идентификаторам.
