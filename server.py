@@ -72,7 +72,7 @@ async def store_media_file(filename: str, data_b64: str):
 
 
 async def fetch_image_as_base64(url: str, max_side: int) -> str:
-    async with httpx.AsyncClient(timeout=30) as c:
+    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as c:
         r = await c.get(url)
         r.raise_for_status()
         content = r.content
