@@ -77,6 +77,7 @@ except ImportError:  # pragma: no cover - поддержка Pydantic v1 без 
     ConfigDict = None  # type: ignore
 
 from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
+from collections.abc import Iterable
 
 
 try:  # pragma: no cover - модельный валидатор есть только в Pydantic v2
@@ -88,6 +89,17 @@ try:  # pragma: no cover - Pydantic v2 сохраняет root_validator для 
     from pydantic import root_validator  # type: ignore
 except ImportError:  # pragma: no cover - Pydantic v2 без root_validator (теоретически)
     root_validator = None  # type: ignore
+
+try:  # pragma: no cover - field_validator доступен только в Pydantic v2
+    from pydantic import field_validator  # type: ignore
+except ImportError:  # pragma: no cover - Pydantic v1
+    field_validator = None  # type: ignore
+
+try:  # pragma: no cover - validator отсутствует в Pydantic v2 без совместимости
+    from pydantic import validator  # type: ignore
+except ImportError:  # pragma: no cover - Pydantic v2 без validator (теоретически)
+    validator = None  # type: ignore
+
 from typing import Dict, List, Optional, Tuple
 
 
@@ -128,6 +140,45 @@ def _coerce_note_fields(cls, values):
     normalized = {k: v for k, v in values.items() if k not in candidate_items}
     normalized["fields"] = candidate_items
     return normalized
+
+
+def _normalize_note_input_tags(raw_tags: Any) -> List[str]:
+    if raw_tags is None:
+        return []
+
+    tags: List[str] = []
+
+    def _append_from_string(text: str) -> None:
+        stripped = text.strip()
+        if not stripped:
+            return
+        for part in re.split(r"[,\s]+", stripped):
+            if part:
+                tags.append(part)
+
+    if isinstance(raw_tags, str):
+        _append_from_string(raw_tags)
+        return tags
+
+    if isinstance(raw_tags, dict):
+        iterable: Iterable[Any] = raw_tags.values()
+    elif isinstance(raw_tags, Iterable):
+        iterable = raw_tags
+    else:
+        _append_from_string(str(raw_tags))
+        return tags
+
+    for item in iterable:
+        if item is None:
+            continue
+        if isinstance(item, str):
+            _append_from_string(item)
+        else:
+            text = str(item).strip()
+            if text:
+                tags.append(text)
+
+    return tags
 
 app = FastMCP("anki-mcp")
 
@@ -292,6 +343,19 @@ class NoteInput(BaseModel):
         @root_validator(pre=True)
         def _ensure_fields(cls, values):  # type: ignore[override]
             return _coerce_note_fields(cls, values)
+
+    if field_validator is not None:  # pragma: no branch - зависит от версии Pydantic
+
+        @field_validator("tags", mode="before")  # type: ignore[misc]
+        @classmethod
+        def _normalize_tags(cls, value):
+            return _normalize_note_input_tags(value)
+
+    elif validator is not None:  # pragma: no cover - для Pydantic v1
+
+        @validator("tags", pre=True)  # type: ignore[misc]
+        def _normalize_tags(cls, value):  # type: ignore[override]
+            return _normalize_note_input_tags(value)
 
 
 class AddNotesArgs(BaseModel):
