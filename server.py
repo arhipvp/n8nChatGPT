@@ -69,7 +69,12 @@ except Exception:  # pragma: no cover - fallback when fastapi is unavailable
                         "more_body": False,
                     }
                 )
-from pydantic import BaseModel, Field, constr, AnyHttpUrl
+try:
+    from pydantic import BaseModel, Field, constr, AnyHttpUrl, ConfigDict
+except ImportError:  # pragma: no cover - поддержка Pydantic v1 без ConfigDict
+    from pydantic import BaseModel, Field, constr, AnyHttpUrl  # type: ignore
+
+    ConfigDict = None  # type: ignore
 from typing import Dict, List, Optional, Tuple
 
 import inspect
@@ -180,10 +185,16 @@ ANKI_URL = "http://127.0.0.1:8765"  # Anki + AnkiConnect must be running
 
 class ImageSpec(BaseModel):
     image_base64: Optional[str] = None
-    image_url: Optional[AnyHttpUrl] = None
+    image_url: Optional[AnyHttpUrl] = Field(default=None, alias="url")
     target_field: constr(strip_whitespace=True, min_length=1) = "Back"
     filename: Optional[str] = None
     max_side: int = Field(default=768, ge=1)  # ресайз по длинной стороне
+
+    if ConfigDict is not None:  # pragma: no branch - атрибут существует только в Pydantic v2
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover - используется только в Pydantic v1
+        class Config:
+            allow_population_by_field_name = True
 
 
 class NoteInput(BaseModel):
