@@ -112,15 +112,19 @@
   "fields": ["Prompt", "Response", "Context", "Sources"],
   "templates": {
     "Card 1": {
-      "Front": "<div class=\"prompt\">{{Prompt}}</div>\n<div class=\"context\">{{Context}}</div>",
-      "Back": "{{FrontSide}}\n<hr id=\"answer\">\n<div class=\"response\">{{Response}}</div>\n<div class=\"sources\">{{Sources}}</div>"
+
+      "Front": "<div class=\"sentence\">{{Sentence}}</div>\n<div class=\"hint\">{{Hint}}</div>\n{{tts de_DE voices=AwesomeTTS:Sentence}}",
+      "Back": "{{FrontSide}}\n<hr id=\"answer\">\n<div class=\"translation\">{{Translation}}</div>\n<div class=\"notes\">{{Notes}}</div>"
+
     }
   },
   "styling": ".card {\n  font-family: \"Inter\", \"Segoe UI\", sans-serif;\n  font-size: 22px;\n  text-align: left;\n  line-height: 1.5;\n}\n.prompt {\n  font-weight: 600;\n  font-size: 24px;\n  margin-bottom: 12px;\n}\n.context {\n  color: #4a5568;\n  font-style: italic;\n  margin-bottom: 16px;\n}\n.response {\n  color: #1a202c;\n  font-size: 22px;\n  margin-bottom: 12px;\n}\n.sources {\n  color: #2d3748;\n  font-size: 18px;\n  white-space: pre-wrap;\n}"
 }
 ```
 
-> **Важно.** Клиент должен передавать значения полей строго в порядке `Prompt`, `Response`, `Context`, `Sources`, иначе часть данных окажется пустой.
+
+> **Важно.** Клиент должен передавать значения полей строго в порядке `Sentence`, `Translation`, `Hint`, `Notes`. Шаблон фронта включает вызов `{{tts de_DE voices=AwesomeTTS:Sentence}}`, поэтому в Anki должен быть настроен профиль AwesomeTTS `Sentence`, который озвучивает поле `Sentence`.
+
 
 ### `anki.add_from_model`
 - **Назначение:** добавить заметки в указанную колоду с учётом текущих полей и шаблонов модели. Инструмент сам загружает структуру модели, нормализует `fields` и обрабатывает вложенные изображения.
@@ -181,7 +185,9 @@
 }
 ```
 
-> **Напоминание.** Даже если поля передаются объектом `fields`, сервер сопоставляет их с порядком `Prompt → Response → Context → Sources`, чтобы карточка отображалась корректно.
+
+> **Напоминание.** Даже если поля передаются объектом `fields`, сервер сопоставляет их с порядком `Sentence → Translation → Hint → Notes`, чтобы шаблон с TTS `{{tts de_DE voices=AwesomeTTS:Sentence}}` оставался валидным и продолжал озвучивать поле `Sentence` через профиль AwesomeTTS `Sentence`.
+
 
 ### `anki.note_info`
 - **Назначение:** получить подробные сведения о заметках по их идентификаторам.

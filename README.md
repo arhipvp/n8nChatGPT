@@ -65,8 +65,12 @@
 
 ### Шаблон «Front»
 ```html
+
 <div class="prompt">{{Prompt}}</div>
 <div class="context">{{Context}}</div>
+<div class="sentence">{{Sentence}}</div>
+<div class="hint">{{Hint}}</div>
+{{tts de_DE voices=AwesomeTTS:Sentence}}
 ```
 
 ### Шаблон «Back»
@@ -110,6 +114,9 @@
   white-space: pre-wrap;
 }
 ```
+
+
+TTS-вызов `{{tts de_DE voices=AwesomeTTS:Sentence}}` размещён на лицевой стороне и использует плагин AwesomeTTS с голосовым профилем `Sentence`, привязанным к полю `Sentence`. Убедитесь, что соответствующий профиль активирован в Anki, иначе воспроизведение произойдёт с настройками по умолчанию.
 
 ## Локальный smoke-тест
 Запустите `python test_client.py`, чтобы проверить базовое взаимодействие с MCP-сервером без туннеля.
