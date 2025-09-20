@@ -99,3 +99,51 @@ async def test_add_from_model_sanitizes_data_url(monkeypatch):
     assert result.added == 1
     assert all("note is empty" not in str(detail) for detail in result.details)
 
+
+@pytest.mark.anyio
+async def test_note_input_accepts_url_alias(monkeypatch):
+    stored_calls: list[dict[str, str]] = []
+    captured: dict[str, object] = {}
+
+    async def fake_fetch_image(url: str, max_side: int) -> str:
+        captured["fetched"] = {"url": url, "max_side": max_side}
+        return base64.b64encode(b"alias-image").decode("ascii")
+
+    async def fake_store_media_file(filename: str, data_b64: str):
+        stored_calls.append({"filename": filename, "data": data_b64})
+
+    async def fake_anki_call(action: str, params: dict):
+        if action == "createDeck":
+            captured["createDeck"] = params
+            return True
+        if action == "addNotes":
+            captured["addNotes"] = params
+            return [987]
+        raise AssertionError(f"unexpected action: {action}")
+
+    monkeypatch.setattr(server, "fetch_image_as_base64", fake_fetch_image)
+    monkeypatch.setattr(server, "store_media_file", fake_store_media_file)
+    monkeypatch.setattr(server, "anki_call", fake_anki_call)
+    monkeypatch.setattr(server.uuid, "uuid4", lambda: DummyUUID("img-alias"))
+
+    note = server.NoteInput(
+        fields={"Front": "Alias"},
+        images=[{"url": "https://example.com/img.jpg"}],
+    )
+
+    image = note.images[0]
+    assert str(image.image_url) == "https://example.com/img.jpg"
+
+    args = server.AddNotesArgs(deck="Deck", model="Basic", notes=[note])
+    result = await server.add_notes.fn(args)
+
+    assert result.added == 1
+    assert all("warn" not in detail for detail in result.details)
+    assert stored_calls and stored_calls[0]["data"].startswith("YWxpYXMt")
+    assert captured.get("fetched") == {"url": "https://example.com/img.jpg", "max_side": image.max_side}
+
+    add_notes_payload = captured.get("addNotes")
+    assert isinstance(add_notes_payload, dict)
+    fields = add_notes_payload["notes"][0]["fields"]
+    assert "<img src=\"img-alias.jpg\"" in fields.get("Back", "")
+
