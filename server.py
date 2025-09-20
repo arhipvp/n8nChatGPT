@@ -77,7 +77,7 @@ except ImportError:  # pragma: no cover - поддержка Pydantic v1 без 
     ConfigDict = None  # type: ignore
 
 from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 
 try:  # pragma: no cover - модельный валидатор есть только в Pydantic v2
@@ -146,39 +146,37 @@ def _normalize_note_input_tags(raw_tags: Any) -> List[str]:
     if raw_tags is None:
         return []
 
-    tags: List[str] = []
+    normalized: List[str] = []
 
-    def _append_from_string(text: str) -> None:
-        stripped = text.strip()
-        if not stripped:
+    def _consume(value: Any) -> None:
+        if value is None:
             return
-        for part in re.split(r"[,\s]+", stripped):
-            if part:
-                tags.append(part)
 
-    if isinstance(raw_tags, str):
-        _append_from_string(raw_tags)
-        return tags
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return
+            for part in re.split(r"[,\s]+", stripped):
+                if part:
+                    normalized.append(part)
+            return
 
-    if isinstance(raw_tags, dict):
-        iterable: Iterable[Any] = raw_tags.values()
-    elif isinstance(raw_tags, Iterable):
-        iterable = raw_tags
-    else:
-        _append_from_string(str(raw_tags))
-        return tags
+        if isinstance(value, Mapping):
+            for sub_value in value.values():
+                _consume(sub_value)
+            return
 
-    for item in iterable:
-        if item is None:
-            continue
-        if isinstance(item, str):
-            _append_from_string(item)
-        else:
-            text = str(item).strip()
-            if text:
-                tags.append(text)
+        if isinstance(value, Iterable):
+            for item in value:
+                _consume(item)
+            return
 
-    return tags
+        text = str(value).strip()
+        if text:
+            normalized.append(text)
+
+    _consume(raw_tags)
+    return normalized
 
 app = FastMCP("anki-mcp")
 

@@ -133,6 +133,35 @@ async def test_add_from_model_accepts_plain_dict(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_add_from_model_normalizes_note_input_tags(monkeypatch):
+    captured_notes = {}
+
+    async def fake_anki_call(action, params):
+        nonlocal captured_notes
+        if action == "createDeck":
+            return None
+        if action == "modelFieldNames":
+            return ["Front", "Back"]
+        if action == "modelTemplates":
+            return {}
+        if action == "modelStyling":
+            return {"css": ""}
+        if action == "addNotes":
+            captured_notes = params
+            return [999]
+        raise AssertionError(f"Unexpected action: {action}")
+
+    monkeypatch.setattr("server.anki_call", fake_anki_call)
+
+    note = NoteInput(Front="Q", Back="A", tags="auto")
+
+    result = await add_from_model.fn(deck="Deck", model="Basic", items=[note])
+
+    assert result.added == 1
+    assert captured_notes["notes"][0]["tags"] == ["auto"]
+
+
+@pytest.mark.anyio
 async def test_add_notes_accepts_flat_fields(monkeypatch):
     captured_notes = {}
 
