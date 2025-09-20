@@ -71,7 +71,22 @@ async def store_media_file(filename: str, data_b64: str):
     return await anki_call("storeMediaFile", {"filename": filename, "data": data_b64})
 
 
-async def fetch_image_as_base64(url: str, max_side: int) -> str:
+def _ext_from_format(image_format: Optional[str]) -> str:
+    if not image_format:
+        return "jpg"
+    fmt = image_format.upper()
+    if fmt in {"JPEG", "JPG", "PJPEG"}:
+        return "jpg"
+    if fmt == "PNG":
+        return "png"
+    if fmt == "WEBP":
+        return "webp"
+    if fmt == "GIF":
+        return "gif"
+    return "png"
+
+
+async def fetch_image_as_base64(url: str, max_side: int) -> Tuple[str, Optional[str]]:
     async with httpx.AsyncClient(timeout=30) as c:
         r = await c.get(url)
         r.raise_for_status()
@@ -79,7 +94,18 @@ async def fetch_image_as_base64(url: str, max_side: int) -> str:
 
     # лёгкое сжатие/ресайз (если распознаётся формат)
     try:
-        im = Image.open(BytesIO(content)).convert("RGB")
+        im = Image.open(BytesIO(content))
+        original_format = (im.format or "").upper() or None
+        has_alpha = "A" in im.getbands()
+
+        if original_format == "JPEG" and not has_alpha:
+            im = im.convert("RGB")
+            target_format = "JPEG"
+            save_kwargs = {"quality": 85}
+        else:
+            target_format = original_format if original_format in {"PNG", "WEBP"} else "PNG"
+            save_kwargs = {}
+
         w, h = im.size
         scale = max(w, h) / max_side if max(w, h) > max_side else 1.0
         if scale > 1.0:
@@ -88,13 +114,12 @@ async def fetch_image_as_base64(url: str, max_side: int) -> str:
             new_h = max(1, round(h / scale))
             im = im.resize((new_w, new_h))
         buf = BytesIO()
-        im.save(buf, format="JPEG", quality=85)
+        im.save(buf, format=target_format, **save_kwargs)
         content = buf.getvalue()
+        return base64.b64encode(content).decode("ascii"), target_format
     except Exception:
         # если Pillow не смог — отправим как есть
-        pass
-
-    return base64.b64encode(content).decode("ascii")
+        return base64.b64encode(content).decode("ascii"), None
 
 
 def ensure_img_tag(existing: str, fname: str) -> str:
@@ -207,12 +232,12 @@ async def add_from_model(deck: str, model: str, items: List[NoteInput]) -> AddNo
 
         # 3) поддержка images[] (старый механизм вставки <img>)
         for img in note.images:
-            fname = img.filename or f"{uuid.uuid4().hex}.jpg"
+            detected_format: Optional[str] = None
             if img.image_base64:
                 data_b64 = img.image_base64
             elif img.image_url:
                 try:
-                    data_b64 = await fetch_image_as_base64(str(img.image_url), img.max_side)
+                    data_b64, detected_format = await fetch_image_as_base64(str(img.image_url), img.max_side)
                 except Exception as e:
                     results.append({"index": i, "warn": f"fetch_image_failed: {e}"})
                     continue
@@ -220,6 +245,7 @@ async def add_from_model(deck: str, model: str, items: List[NoteInput]) -> AddNo
                 results.append({"index": i, "warn": "no_image_provided"})
                 continue
 
+            fname = img.filename or f"{uuid.uuid4().hex}.{_ext_from_format(detected_format)}"
             try:
                 await store_media_file(fname, data_b64)
                 prev = fields.get(img.target_field, "")
@@ -271,12 +297,12 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
 
         # images[] как раньше
         for img in note.images:
-            fname = img.filename or f"{uuid.uuid4().hex}.jpg"
+            detected_format: Optional[str] = None
             if img.image_base64:
                 data_b64 = img.image_base64
             elif img.image_url:
                 try:
-                    data_b64 = await fetch_image_as_base64(str(img.image_url), img.max_side)
+                    data_b64, detected_format = await fetch_image_as_base64(str(img.image_url), img.max_side)
                 except Exception as e:
                     results.append({"index": i, "warn": f"fetch_image_failed: {e}"})
                     continue
@@ -284,6 +310,7 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
                 results.append({"index": i, "warn": "no_image_provided"})
                 continue
 
+            fname = img.filename or f"{uuid.uuid4().hex}.{_ext_from_format(detected_format)}"
             try:
                 await store_media_file(fname, data_b64)
                 prev = fields.get(img.target_field, "")

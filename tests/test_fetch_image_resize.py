@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
+import base64
 
 
 def _field_stub(*args, **kwargs):
@@ -68,11 +69,12 @@ def test_fetch_image_handles_extremely_thin_image(monkeypatch):
         lambda *args, **kwargs: DummyAsyncClient(response),
     )
 
-    result = asyncio.run(
+    result, fmt = asyncio.run(
         server.fetch_image_as_base64("http://example.com/image.jpg", max_side=100)
     )
 
     assert isinstance(result, str)
+    assert fmt == "JPEG"
     assert len(result) > 0
 
 
@@ -88,11 +90,37 @@ def test_fetch_image_single_pixel_width_does_not_raise_value_error(monkeypatch):
     )
 
     try:
-        result = asyncio.run(
+        result, fmt = asyncio.run(
             server.fetch_image_as_base64("http://example.com/tiny.jpg", max_side=64)
         )
     except ValueError as exc:  # pragma: no cover - explicit failure path for clarity
         pytest.fail(f"Unexpected ValueError during resize: {exc}")
 
     assert isinstance(result, str)
+    assert fmt == "JPEG"
     assert result
+
+
+def test_fetch_image_preserves_png_alpha(monkeypatch):
+    buf = BytesIO()
+    image = Image.new("RGBA", (10, 10), color=(255, 0, 0, 0))
+    image.putpixel((0, 0), (10, 20, 30, 128))
+    image.save(buf, format="PNG")
+    response = DummyResponse(buf.getvalue())
+
+    monkeypatch.setattr(
+        server.httpx,
+        "AsyncClient",
+        lambda *args, **kwargs: DummyAsyncClient(response),
+    )
+
+    result, fmt = asyncio.run(
+        server.fetch_image_as_base64("http://example.com/image.png", max_side=100)
+    )
+
+    assert fmt == "PNG"
+    raw = base64.b64decode(result)
+    assert raw.startswith(b"\x89PNG\r\n\x1a\n")
+
+    with Image.open(BytesIO(raw)) as processed:
+        assert "A" in processed.getbands()
