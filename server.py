@@ -225,6 +225,194 @@ def _model_validate(model: Type[T_Model], data: Any) -> T_Model:
     return model.parse_obj(data)  # type: ignore[attr-defined]
 
 
+def _ensure_json_ready(value: Any) -> Any:
+    """Приводит значение к JSON-совместимому виду."""
+
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+
+    if isinstance(value, set):
+        return [_ensure_json_ready(item) for item in sorted(value, key=lambda x: str(x))]
+
+    if isinstance(value, (list, tuple)):
+        return [_ensure_json_ready(item) for item in value]
+
+    if isinstance(value, Mapping):
+        return {str(key): _ensure_json_ready(val) for key, val in value.items()}
+
+    if hasattr(value, "model_dump"):
+        try:
+            return value.model_dump(by_alias=True, mode="json")
+        except TypeError:
+            return _ensure_json_ready(value.model_dump())
+
+    if hasattr(value, "model_dump_json"):
+        try:
+            return json.loads(value.model_dump_json())
+        except Exception:  # pragma: no cover - защитный путь
+            return str(value)
+
+    try:
+        json.dumps(value)
+    except TypeError:
+        return str(value)
+    return value
+
+
+def _component_meta(component: Any) -> Optional[dict]:
+    """Возвращает метаинформацию FastMCP-компонента в JSON-совместимом виде."""
+
+    get_meta = getattr(component, "get_meta", None)
+    if callable(get_meta):
+        try:
+            meta = get_meta(include_fastmcp_meta=True)
+        except TypeError:  # pragma: no cover - устаревшие сигнатуры
+            meta = get_meta()
+        except Exception:  # pragma: no cover - защитный путь
+            meta = None
+        if meta is not None:
+            return _ensure_json_ready(meta)
+
+    base_meta: dict = {}
+    raw_meta = getattr(component, "meta", None)
+    if isinstance(raw_meta, Mapping):
+        base_meta.update(_ensure_json_ready(raw_meta))
+    elif raw_meta is not None:
+        base_meta.update(_ensure_json_ready(raw_meta))  # pragma: no cover - редкий случай
+
+    tags = getattr(component, "tags", None)
+    tag_list = [str(tag) for tag in sorted(tags, key=str)] if tags else []
+
+    existing_fastmcp = base_meta.get("_fastmcp")
+    if isinstance(existing_fastmcp, Mapping):
+        fastmcp_meta = dict(existing_fastmcp)
+    else:
+        fastmcp_meta = {}
+    fastmcp_meta["tags"] = tag_list
+    base_meta["_fastmcp"] = fastmcp_meta
+    return base_meta
+
+
+def _component_to_manifest(component: Any, method_name: str, fallback_converter) -> Optional[dict]:
+    """Преобразует компонент FastMCP в словарь для манифеста."""
+
+    convert = getattr(component, method_name, None)
+    if callable(convert):
+        try:
+            result = convert(include_fastmcp_meta=True)
+        except TypeError:  # pragma: no cover - сигнатура без параметров
+            result = convert()
+        except Exception:  # pragma: no cover - защитный путь
+            result = None
+        if result is not None and hasattr(result, "model_dump"):
+            try:
+                return result.model_dump(by_alias=True, mode="json")
+            except Exception:  # pragma: no cover - защитный путь
+                pass
+
+    try:
+        return fallback_converter(component)
+    except Exception:  # pragma: no cover - защитный путь
+        return None
+
+
+def _manual_tool_manifest(tool: Any) -> dict:
+    return {
+        "name": getattr(tool, "name", None),
+        "title": getattr(tool, "title", None),
+        "description": getattr(tool, "description", None),
+        "inputSchema": _ensure_json_ready(getattr(tool, "parameters", None)),
+        "outputSchema": _ensure_json_ready(getattr(tool, "output_schema", None)),
+        "annotations": _ensure_json_ready(getattr(tool, "annotations", None)),
+        "_meta": _component_meta(tool),
+    }
+
+
+def _manual_resource_manifest(resource: Any) -> dict:
+    return {
+        "name": getattr(resource, "name", None),
+        "title": getattr(resource, "title", None),
+        "uri": str(getattr(resource, "uri", "")) if getattr(resource, "uri", None) is not None else None,
+        "description": getattr(resource, "description", None),
+        "mimeType": getattr(resource, "mime_type", None),
+        "size": getattr(resource, "size", None),
+        "annotations": _ensure_json_ready(getattr(resource, "annotations", None)),
+        "_meta": _component_meta(resource),
+    }
+
+
+def _manual_resource_template_manifest(template: Any) -> dict:
+    return {
+        "name": getattr(template, "name", None),
+        "title": getattr(template, "title", None),
+        "uriTemplate": str(getattr(template, "uri_template", "")) if getattr(template, "uri_template", None) is not None else None,
+        "description": getattr(template, "description", None),
+        "mimeType": getattr(template, "mime_type", None),
+        "annotations": _ensure_json_ready(getattr(template, "annotations", None)),
+        "_meta": _component_meta(template),
+    }
+
+
+def _manual_prompt_manifest(prompt: Any) -> dict:
+    arguments = getattr(prompt, "arguments", None) or []
+    return {
+        "name": getattr(prompt, "name", None),
+        "title": getattr(prompt, "title", None),
+        "description": getattr(prompt, "description", None),
+        "arguments": _ensure_json_ready(arguments),
+        "_meta": _component_meta(prompt),
+    }
+
+
+async def _list_manager_items(manager_name: str, list_method: str) -> List[Any]:
+    manager = getattr(app, manager_name, None)
+    if manager is None:
+        return []
+
+    method = getattr(manager, list_method, None)
+    if method is None:
+        return []
+
+    try:
+        result = method()
+        if inspect.isawaitable(result):
+            result = await result
+        if result is None:
+            return []
+        return list(result)
+    except Exception:  # pragma: no cover - защитный путь
+        return []
+
+
+async def _collect_manifest_components() -> Tuple[List[dict], List[dict], List[dict], List[dict]]:
+    tools: List[dict] = []
+    resources: List[dict] = []
+    prompts: List[dict] = []
+    resource_templates: List[dict] = []
+
+    for tool in await _list_manager_items("_tool_manager", "list_tools"):
+        entry = _component_to_manifest(tool, "to_mcp_tool", _manual_tool_manifest)
+        if entry is not None:
+            tools.append(entry)
+
+    for resource in await _list_manager_items("_resource_manager", "list_resources"):
+        entry = _component_to_manifest(resource, "to_mcp_resource", _manual_resource_manifest)
+        if entry is not None:
+            resources.append(entry)
+
+    for template in await _list_manager_items("_resource_manager", "list_resource_templates"):
+        entry = _component_to_manifest(template, "to_mcp_template", _manual_resource_template_manifest)
+        if entry is not None:
+            resource_templates.append(entry)
+
+    for prompt in await _list_manager_items("_prompt_manager", "list_prompts"):
+        entry = _component_to_manifest(prompt, "to_mcp_prompt", _manual_prompt_manifest)
+        if entry is not None:
+            prompts.append(entry)
+
+    return tools, resources, prompts, resource_templates
+
+
 async def _build_manifest() -> dict:
     """Собирает MCP-манифест, используя fastmcp или запасную реализацию."""
 
@@ -238,13 +426,15 @@ async def _build_manifest() -> dict:
             manifest = json.loads(manifest)
         return _normalize_manifest(manifest)
 
-    # Запасной вариант для тестов без fastmcp: возвращаем минимально корректную структуру
+    tools, resources, prompts, resource_templates = await _collect_manifest_components()
+
     return _normalize_manifest({
         "mcp": {"version": "0.1.0"},
         "server": {"name": getattr(app, "name", "anki-mcp")},
-        "tools": [],
-        "resources": [],
-        "prompts": [],
+        "tools": tools,
+        "resources": resources,
+        "prompts": prompts,
+        "resourceTemplates": resource_templates,
     })
 
 

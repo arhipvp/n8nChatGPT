@@ -96,3 +96,25 @@ def test_manifest_routes_without_fastapi(monkeypatch):
     capabilities = payload.get("capabilities", {})
     search_info = capabilities.get("search", {})
     assert search_info.get("enabled") is False
+
+
+def test_manifest_fallback_builds_tools(monkeypatch, client):
+    monkeypatch.setattr(server, "_format_mcp_info", None)
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    payload = response.json()
+    tool_names = {tool.get("name") for tool in payload.get("tools", [])}
+
+    expected = {
+        "search",
+        "anki.note_info",
+        "anki.model_info",
+        "anki.add_from_model",
+        "anki.add_notes",
+        "greet",
+    }
+
+    assert expected.issubset(tool_names)
