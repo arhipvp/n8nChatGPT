@@ -7,8 +7,10 @@ import signal
 import subprocess
 import threading
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
+from dotenv import load_dotenv
 
 PORT = 8000
 MCP_CMD = [
@@ -26,21 +28,7 @@ MCP_CMD = [
 NGROK_API = "http://127.0.0.1:4040/api/tunnels"
 
 
-def load_env(path: Path) -> dict[str, str]:
-    env_data: dict[str, str] = {}
-    try:
-        with path.open("r", encoding="utf-8") as fh:
-            for raw_line in fh:
-                line = raw_line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if "=" not in line:
-                    continue
-                key, value = line.split("=", 1)
-                env_data[key.strip()] = value.strip()
-    except FileNotFoundError:
-        pass
-    return env_data
+load_dotenv()
 
 procs = []  # [(name, Popen)]
 _output_state = {}
@@ -168,9 +156,20 @@ def ngrok_api_alive() -> bool:
         return False
 
 
+def _parse_addr(addr: str):
+    if not addr:
+        return None, None
+    candidate = addr if "://" in addr else f"http://{addr}"
+    try:
+        parsed = urlparse(candidate)
+    except ValueError:
+        return None, None
+    return parsed.hostname, parsed.port
+
+
 def get_ngrok_url(timeout=20):
     t0 = time.time()
-    target_addr = f"127.0.0.1:{PORT}"
+    loopback_hosts = {"127.0.0.1", "localhost", "::1"}
     while time.time() - t0 < timeout:
         try:
             r = requests.get(NGROK_API, timeout=2)
@@ -180,10 +179,8 @@ def get_ngrok_url(timeout=20):
                 if t.get("proto") != "https":
                     continue
                 config = t.get("config") or {}
-                addr = config.get("addr", "")
-                if "://" in addr:
-                    addr = addr.split("://", 1)[1]
-                if addr == target_addr:
+                host, port = _parse_addr(config.get("addr", ""))
+                if host and host.lower() in loopback_hosts and port == PORT:
                     return t.get("public_url")
         except Exception:
             pass
@@ -241,10 +238,7 @@ if __name__ == "__main__":
             shutdown()
             sys.exit(1)
 
-        env_map = load_env(Path(".env"))
-        token = env_map.get("NGROK_AUTHTOKEN", "").strip()
-        if not token:
-            token = os.environ.get("NGROK_AUTHTOKEN", "").strip()
+        token = os.environ.get("NGROK_AUTHTOKEN", "").strip()
 
         NGROK_CMD = [ngrok_exe, "http", str(PORT)]
         popen_env = None
