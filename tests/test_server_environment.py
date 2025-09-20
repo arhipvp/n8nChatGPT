@@ -33,7 +33,7 @@ def test_env_defaults_fallback_when_blank():
         module = importlib.reload(server)
 
         assert module.DEFAULT_DECK == "Default"
-        assert module.DEFAULT_MODEL == "Basic"
+        assert module.DEFAULT_MODEL == "Поля для ChatGPT"
     finally:
         _restore_env(original_deck, original_model)
         importlib.reload(server)
