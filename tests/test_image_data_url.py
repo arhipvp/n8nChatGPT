@@ -101,6 +101,71 @@ async def test_add_from_model_sanitizes_data_url(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_add_from_model_target_field_is_case_insensitive(monkeypatch):
+    stored: dict[str, str] = {}
+    captured: dict[str, object] = {}
+
+    async def fake_store_media_file(filename: str, data_b64: str):
+        stored["filename"] = filename
+        stored["data"] = data_b64
+
+    async def fake_anki_call(action: str, params: dict):
+        if action == "createDeck":
+            return True
+        if action == "modelFieldNames":
+            return ["Front", "Back"]
+        if action == "modelTemplates":
+            return {"Card 1": {"Front": "{{Front}}", "Back": "{{Back}}"}}
+        if action == "modelStyling":
+            return {"css": ""}
+        if action == "addNotes":
+            captured["payload"] = params
+            return [555]
+        raise AssertionError(f"unexpected action: {action}")
+
+    monkeypatch.setattr(server, "store_media_file", fake_store_media_file)
+    monkeypatch.setattr(server, "anki_call", fake_anki_call)
+    monkeypatch.setattr(server.uuid, "uuid4", lambda: DummyUUID("case-img"))
+
+    image = server.ImageSpec(image_base64="data:image/png;base64,Zm9v", target_field="back")
+    note = server.NoteInput(fields={"Front": "Question"}, images=[image])
+
+    result = await server.add_from_model.fn("Default", "Basic", [note])
+
+    assert result.added == 1
+    payload = captured.get("payload")
+    assert isinstance(payload, dict)
+    note_fields = payload["notes"][0]["fields"]
+    assert "<img src=\"case-img.png\"" in note_fields.get("Back", "")
+
+
+@pytest.mark.anyio
+async def test_add_from_model_invalid_target_field_reports_details(monkeypatch):
+    async def fake_anki_call(action: str, params: dict):
+        if action == "createDeck":
+            return True
+        if action == "modelFieldNames":
+            return ["Front", "Back"]
+        if action == "modelTemplates":
+            return {"Card 1": {"Front": "{{Front}}", "Back": "{{Back}}"}}
+        if action == "modelStyling":
+            return {"css": ""}
+        raise AssertionError(f"unexpected action: {action}")
+
+    monkeypatch.setattr(server, "anki_call", fake_anki_call)
+
+    image = server.ImageSpec(image_base64="data:image/png;base64,Zm9v", target_field="Summary")
+    note = server.NoteInput(fields={"Front": "Question"}, images=[image])
+
+    with pytest.raises(ValueError) as excinfo:
+        await server.add_from_model.fn("Default", "Basic", [note])
+
+    message = str(excinfo.value)
+    assert "note index 0" in message
+    assert "'Front'" in message and "'Back'" in message
+
+
+@pytest.mark.anyio
 async def test_note_input_accepts_url_alias(monkeypatch):
     stored_calls: list[dict[str, str]] = []
     captured: dict[str, object] = {}
