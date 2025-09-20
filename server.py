@@ -209,7 +209,7 @@ def _env_optional(name: str) -> Optional[str]:
 
 
 DEFAULT_DECK = _env_default("ANKI_DEFAULT_DECK", "Default")
-DEFAULT_MODEL = _env_default("ANKI_DEFAULT_MODEL", "Basic")
+DEFAULT_MODEL = _env_default("ANKI_DEFAULT_MODEL", "Поля для ChatGPT")
 SEARCH_API_URL = _env_optional("SEARCH_API_URL")
 SEARCH_API_KEY = _env_optional("SEARCH_API_KEY")
 
