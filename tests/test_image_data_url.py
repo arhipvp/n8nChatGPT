@@ -1,4 +1,5 @@
 import base64
+import re
 import sys
 import types
 from pathlib import Path
@@ -114,15 +115,70 @@ async def test_process_data_urls_accepts_mixed_case_prefix(monkeypatch):
 
     monkeypatch.setattr(server, "store_media_file", fake_store_media_file)
 
-    fields = {"Back": data_url}
+    original_value = f"Before text {data_url}"
+    fields = {"Back": original_value}
     results: list[dict[str, object]] = []
 
     await server.process_data_urls_in_fields(fields, results, note_index=0)
 
     assert stored["data"] == base64.b64encode(raw_bytes).decode("ascii")
     assert stored["filename"].endswith(".png")
-    assert fields["Back"].endswith(".png")
+    expected = server.ensure_img_tag(
+        original_value.replace(data_url, "").strip(), stored["filename"]
+    )
+    assert fields["Back"] == expected
     assert all("warn" not in detail for detail in results)
+
+
+@pytest.mark.anyio
+async def test_data_url_and_images_share_same_html(monkeypatch):
+    raw_bytes = b"unified"
+    original_b64 = base64.b64encode(raw_bytes).decode("ascii")
+    data_url = f"data:image/png;base64,{original_b64}"
+
+    stored_calls: list[tuple[str, str]] = []
+
+    async def fake_store_media_file(filename: str, data_b64: str):
+        stored_calls.append((filename, data_b64))
+
+    captured: dict[str, object] = {}
+
+    async def fake_anki_call(action: str, params: dict):
+        if action == "createDeck":
+            return True
+        if action == "modelFieldNames":
+            return ["Front", "Back"]
+        if action == "modelTemplates":
+            return {"Card 1": {"Front": "{{Front}}", "Back": "{{Back}}"}}
+        if action == "modelStyling":
+            return {"css": ""}
+        if action == "addNotes":
+            captured["fields_html"] = params["notes"][0]["fields"]["Back"]
+            return [456]
+        raise AssertionError(f"unexpected action: {action}")
+
+    monkeypatch.setattr(server, "store_media_file", fake_store_media_file)
+    monkeypatch.setattr(server, "anki_call", fake_anki_call)
+    monkeypatch.setattr(server.uuid, "uuid4", lambda: DummyUUID("imguuid"))
+
+    fields = {"Back": f"Existing {data_url}"}
+    results: list[dict[str, object]] = []
+    await server.process_data_urls_in_fields(fields, results, note_index=0)
+
+    assert not [detail for detail in results if "warn" in detail]
+    data_url_html = fields["Back"]
+    assert stored_calls, "data URL should trigger media storage"
+    image = server.ImageSpec(image_base64=data_url, target_field="Back")
+    note = server.NoteInput(fields={"Front": "Q", "Back": "Existing"}, images=[image])
+    await server.add_from_model.fn("Default", "Basic", [note])
+
+    assert "fields_html" in captured
+    images_html = captured["fields_html"]
+    assert len(stored_calls) >= 2, "image helper should store media twice"
+
+    normalized_data_html = re.sub(r'src="[^"]+"', 'src="FILE"', data_url_html)
+    normalized_images_html = re.sub(r'src="[^"]+"', 'src="FILE"', images_html)
+    assert normalized_data_html == normalized_images_html
 
 
 @pytest.mark.anyio
