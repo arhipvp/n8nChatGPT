@@ -75,7 +75,21 @@ except ImportError:  # pragma: no cover - поддержка Pydantic v1 без 
     from pydantic import BaseModel, Field, constr, AnyHttpUrl  # type: ignore
 
     ConfigDict = None  # type: ignore
+
 from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar
+
+
+try:  # pragma: no cover - модельный валидатор есть только в Pydantic v2
+    from pydantic import model_validator  # type: ignore
+except ImportError:  # pragma: no cover - Pydantic v1
+    model_validator = None  # type: ignore
+
+try:  # pragma: no cover - Pydantic v2 сохраняет root_validator для совместимости
+    from pydantic import root_validator  # type: ignore
+except ImportError:  # pragma: no cover - Pydantic v2 без root_validator (теоретически)
+    root_validator = None  # type: ignore
+from typing import Dict, List, Optional, Tuple
+
 
 import inspect
 import json
@@ -87,6 +101,33 @@ import hashlib
 from io import BytesIO
 from PIL import Image
 import httpx
+
+_NOTE_RESERVED_TOP_LEVEL_KEYS = {"tags", "images", "dedup_key"}
+
+
+def _coerce_note_fields(cls, values):
+    """Извлекает плоские поля в NoteInput.fields до стандартной валидации."""
+
+    if not isinstance(values, dict):  # pragma: no cover - для совместимости с Pydantic v1
+        return values
+
+    if "fields" in values:
+        return values
+
+    candidate_items = {
+        key: values[key]
+        for key in list(values.keys())
+        if key not in _NOTE_RESERVED_TOP_LEVEL_KEYS
+    }
+
+    if not candidate_items:
+        raise ValueError(
+            "Каждый элемент items должен содержать объект fields с полями заметки"
+        )
+
+    normalized = {k: v for k, v in values.items() if k not in candidate_items}
+    normalized["fields"] = candidate_items
+    return normalized
 
 app = FastMCP("anki-mcp")
 
@@ -238,6 +279,19 @@ class NoteInput(BaseModel):
     tags: List[str] = Field(default_factory=list)
     images: List[ImageSpec] = Field(default_factory=list)
     dedup_key: Optional[str] = None  # произвольная строка для идемпотентности
+
+    if model_validator is not None:  # pragma: no branch - конкретная ветка зависит от версии Pydantic
+
+        @model_validator(mode="before")  # type: ignore[misc]
+        @classmethod
+        def _ensure_fields(cls, values):
+            return _coerce_note_fields(cls, values)
+
+    elif root_validator is not None:  # pragma: no cover - fallback для Pydantic v1
+
+        @root_validator(pre=True)
+        def _ensure_fields(cls, values):  # type: ignore[override]
+            return _coerce_note_fields(cls, values)
 
 
 class AddNotesArgs(BaseModel):
