@@ -34,6 +34,7 @@ import json
 
 import httpx
 import base64
+import binascii
 import uuid
 import re
 import hashlib
@@ -41,6 +42,54 @@ from io import BytesIO
 from PIL import Image
 
 app = FastMCP("anki-mcp")
+
+if not hasattr(app, "custom_route"):
+    def _noop_custom_route(*args, **kwargs):  # pragma: no cover - fallback for test stubs
+        def decorator(func):
+            return func
+
+        return decorator
+
+    app.custom_route = _noop_custom_route  # type: ignore[attr-defined]
+
+if not hasattr(app, "tool"):
+    def _noop_tool(*args, **kwargs):  # pragma: no cover - fallback for test stubs
+        def decorator(func):
+            return func
+
+        return decorator
+
+    app.tool = _noop_tool  # type: ignore[attr-defined]
+
+if not hasattr(app, "http_app"):
+    try:
+        from fastapi import FastAPI as _FastAPIApp
+    except Exception:  # pragma: no cover - fallback when fastapi unavailable
+        try:
+            from starlette.applications import Starlette as _FastAPIApp  # type: ignore
+        except Exception:  # pragma: no cover - final fallback when neither is available
+            _FastAPIApp = None  # type: ignore
+
+    if _FastAPIApp is not None:
+        fallback_http_app = _FastAPIApp()
+
+        if hasattr(fallback_http_app, "get"):
+
+            @fallback_http_app.get("/")  # type: ignore[call-arg]
+            async def _fallback_root():  # pragma: no cover - used only for test stubs
+                return await _build_manifest()
+
+            @fallback_http_app.get("/.well-known/mcp.json")  # type: ignore[call-arg]
+            async def _fallback_manifest():  # pragma: no cover - used only for test stubs
+                return await _build_manifest()
+
+        app.http_app = lambda: fallback_http_app  # type: ignore[attr-defined]
+    else:  # pragma: no cover - executed only when no ASGI framework available
+
+        def _http_app_not_available():
+            raise RuntimeError("ASGI framework not available for http_app fallback")
+
+        app.http_app = _http_app_not_available  # type: ignore[attr-defined]
 
 
 async def _build_manifest() -> dict:
@@ -216,6 +265,30 @@ def ext_from_mime(mime_subtype: str) -> str:
     return "png"
 
 
+def sanitize_image_payload(image_base64: str) -> Tuple[str, Optional[str]]:
+    """Очищает строку base64 и распознаёт data URL изображения."""
+
+    if image_base64 is None:
+        raise ValueError("image payload is None")
+
+    cleaned = image_base64.strip()
+    if not cleaned:
+        raise ValueError("image payload is empty")
+
+    match = DATA_URL_RE.match(cleaned)
+    if not match:
+        return cleaned, None
+
+    mime_subtype, b64_payload = match.groups()
+    try:
+        raw = base64.b64decode(b64_payload, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError(f"invalid base64 payload: {exc}") from exc
+
+    normalized = base64.b64encode(raw).decode("ascii")
+    return normalized, ext_from_mime(mime_subtype)
+
+
 async def process_data_urls_in_fields(fields: Dict[str, str], results: List[dict], note_index: int):
     """
     Находит в строковых полях data URL вида data:image/...;base64,AAA...
@@ -304,9 +377,14 @@ async def add_from_model(deck: str, model: str, items: List[NoteInput]) -> AddNo
 
         # 3) поддержка images[] (старый механизм вставки <img>)
         for img in note.images:
-            fname = img.filename or f"{uuid.uuid4().hex}.jpg"
+            inferred_ext: Optional[str] = None
+            fname = img.filename
             if img.image_base64:
-                data_b64 = img.image_base64
+                try:
+                    data_b64, inferred_ext = sanitize_image_payload(img.image_base64)
+                except ValueError as e:
+                    results.append({"index": i, "warn": f"image_base64_invalid: {e}"})
+                    continue
             elif img.image_url:
                 try:
                     data_b64 = await fetch_image_as_base64(str(img.image_url), img.max_side)
@@ -316,6 +394,10 @@ async def add_from_model(deck: str, model: str, items: List[NoteInput]) -> AddNo
             else:
                 results.append({"index": i, "warn": "no_image_provided"})
                 continue
+
+            if not fname:
+                ext = inferred_ext or "jpg"
+                fname = f"{uuid.uuid4().hex}.{ext}"
 
             try:
                 await store_media_file(fname, data_b64)
@@ -372,9 +454,14 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
 
         # images[] как раньше
         for img in note.images:
-            fname = img.filename or f"{uuid.uuid4().hex}.jpg"
+            inferred_ext: Optional[str] = None
+            fname = img.filename
             if img.image_base64:
-                data_b64 = img.image_base64
+                try:
+                    data_b64, inferred_ext = sanitize_image_payload(img.image_base64)
+                except ValueError as e:
+                    results.append({"index": i, "warn": f"image_base64_invalid: {e}"})
+                    continue
             elif img.image_url:
                 try:
                     data_b64 = await fetch_image_as_base64(str(img.image_url), img.max_side)
@@ -384,6 +471,10 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
             else:
                 results.append({"index": i, "warn": "no_image_provided"})
                 continue
+
+            if not fname:
+                ext = inferred_ext or "jpg"
+                fname = f"{uuid.uuid4().hex}.{ext}"
 
             try:
                 await store_media_file(fname, data_b64)
