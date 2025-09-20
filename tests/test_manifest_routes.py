@@ -29,6 +29,9 @@ def test_manifest_endpoints_return_manifest_json(client, path):
     for key in ("mcp", "server", "tools"):
         assert key in payload
 
+    capabilities = payload.get("capabilities", {})
+    assert capabilities.get("search", {}).get("enabled") is True
+
 
 def test_manifest_routes_without_fastapi(monkeypatch):
     """Проверяем, что сервер отвечает корректным JSON даже без FastAPI."""
@@ -75,3 +78,5 @@ def test_manifest_routes_without_fastapi(monkeypatch):
     payload = json.loads(b"".join(body_chunks).decode("utf-8"))
     for key in ("mcp", "server", "tools"):
         assert key in payload
+    capabilities = payload.get("capabilities", {})
+    assert capabilities.get("search", {}).get("enabled") is True
