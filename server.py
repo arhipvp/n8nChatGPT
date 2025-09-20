@@ -359,7 +359,7 @@ def normalize_fields_for_model(user_fields: Dict[str, str], model_fields: List[s
 # ======================== ИНСТРУМЕНТЫ ========================
 
 @app.tool(name="anki.model_info")
-async def model_info(model: str) -> ModelInfo:
+async def model_info(model: str = DEFAULT_MODEL) -> ModelInfo:
     """
     Возвращает актуальные поля, шаблоны (Front/Back) и CSS для заданной модели Anki.
     """
