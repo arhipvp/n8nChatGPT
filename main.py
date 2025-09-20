@@ -9,6 +9,7 @@ import threading
 from pathlib import Path
 
 import requests
+from dotenv import load_dotenv
 
 PORT = 8000
 MCP_CMD = [
@@ -26,21 +27,7 @@ MCP_CMD = [
 NGROK_API = "http://127.0.0.1:4040/api/tunnels"
 
 
-def load_env(path: Path) -> dict[str, str]:
-    env_data: dict[str, str] = {}
-    try:
-        with path.open("r", encoding="utf-8") as fh:
-            for raw_line in fh:
-                line = raw_line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if "=" not in line:
-                    continue
-                key, value = line.split("=", 1)
-                env_data[key.strip()] = value.strip()
-    except FileNotFoundError:
-        pass
-    return env_data
+load_dotenv()
 
 procs = []  # [(name, Popen)]
 _output_state = {}
@@ -241,10 +228,7 @@ if __name__ == "__main__":
             shutdown()
             sys.exit(1)
 
-        env_map = load_env(Path(".env"))
-        token = env_map.get("NGROK_AUTHTOKEN", "").strip()
-        if not token:
-            token = os.environ.get("NGROK_AUTHTOKEN", "").strip()
+        token = os.environ.get("NGROK_AUTHTOKEN", "").strip()
 
         NGROK_CMD = [ngrok_exe, "http", str(PORT)]
         popen_env = None
