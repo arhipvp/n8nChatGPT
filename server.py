@@ -394,6 +394,7 @@ async def add_from_model(deck: str = DEFAULT_DECK, model: str = DEFAULT_MODEL, i
     await anki_call("createDeck", {"deck": deck})
 
     model_fields, _, _ = await get_model_fields_templates(model)
+    model_field_lookup = {name.lower(): name for name in model_fields}
 
     notes_payload: List[dict] = []
     results: List[dict] = []
@@ -438,10 +439,23 @@ async def add_from_model(deck: str = DEFAULT_DECK, model: str = DEFAULT_MODEL, i
                 continue
 
             fname = img.filename or f"{uuid.uuid4().hex}.{ext_hint or 'jpg'}"
+            canonical_field = model_field_lookup.get(img.target_field.lower())
+            if canonical_field is None:
+                available = ", ".join(repr(name) for name in model_fields)
+                results.append(
+                    {
+                        "index": i,
+                        "warn": (
+                            "unknown_target_field: "
+                            f"{img.target_field!r}. Available fields: [{available}]"
+                        ),
+                    }
+                )
+                continue
             try:
                 await store_media_file(fname, data_b64)
-                prev = fields.get(img.target_field, "")
-                fields[img.target_field] = ensure_img_tag(prev, fname)
+                prev = fields.get(canonical_field, "")
+                fields[canonical_field] = ensure_img_tag(prev, fname)
             except Exception as e:
                 results.append({"index": i, "warn": f"store_media_failed: {e}"})
 
