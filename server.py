@@ -521,7 +521,29 @@ async def fetch_image_as_base64(url: str, max_side: int) -> str:
 
     # лёгкое сжатие/ресайз (если распознаётся формат)
     try:
-        im = Image.open(BytesIO(content)).convert("RGB")
+        original = Image.open(BytesIO(content))
+        # Pillow сохраняет формат только в исходном объекте; копия после convert()
+        # теряет его. Нам важно знать, какой формат мы выбрали для сохранения,
+        # чтобы при необходимости подсказать расширение вызывающему коду.
+        target_format = "JPEG"
+
+        if "A" in (original.getbands() or ()):  # RGBA/LA/etc.
+            rgba = original.convert("RGBA")
+            background = Image.new("RGB", rgba.size, (255, 255, 255))
+            alpha = rgba.getchannel("A")
+            background.paste(rgba, mask=alpha)
+            im = background
+        elif original.mode == "P" and "transparency" in original.info:
+            rgba = original.convert("RGBA")
+            background = Image.new("RGB", rgba.size, (255, 255, 255))
+            alpha = rgba.getchannel("A")
+            background.paste(rgba, mask=alpha)
+            im = background
+        elif original.mode != "RGB":
+            im = original.convert("RGB")
+        else:
+            im = original
+
         w, h = im.size
         scale = max(w, h) / max_side if max(w, h) > max_side else 1.0
         if scale > 1.0:
@@ -530,7 +552,7 @@ async def fetch_image_as_base64(url: str, max_side: int) -> str:
             new_h = max(1, round(h / scale))
             im = im.resize((new_w, new_h))
         buf = BytesIO()
-        im.save(buf, format="JPEG", quality=85)
+        im.save(buf, format=target_format, quality=85)
         content = buf.getvalue()
     except Exception:
         # если Pillow не смог — отправим как есть
