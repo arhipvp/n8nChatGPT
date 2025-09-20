@@ -106,7 +106,7 @@ def find_ngrok_exe() -> str:
     )
 
 
-def start(cmd, name, *, env=None):
+def start(cmd, name, *, env=None, cwd=None):
     print(f"[start] {name}: {' '.join(map(str, cmd))}")
     try:
         p = subprocess.Popen(
@@ -120,6 +120,7 @@ def start(cmd, name, *, env=None):
             if os.name == "nt"
             else 0,
             env=env,
+            cwd=cwd,
         )
     except FileNotFoundError as e:
         print(f"[error] Не найден исполняемый файл для {name}: {e}")
@@ -216,7 +217,7 @@ def shutdown():
 
 if __name__ == "__main__":
     # 1) MCP-сервер
-    mcp = start(MCP_CMD, "mcp")
+    mcp = start(MCP_CMD, "mcp", cwd=ROOT)
     time.sleep(0.8)
     tail("mcp", mcp)
 
