@@ -76,6 +76,9 @@ except ImportError:  # pragma: no cover - поддержка Pydantic v1 без 
 
     ConfigDict = None  # type: ignore
 
+from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar
+
+
 try:  # pragma: no cover - модельный валидатор есть только в Pydantic v2
     from pydantic import model_validator  # type: ignore
 except ImportError:  # pragma: no cover - Pydantic v1
@@ -87,16 +90,17 @@ except ImportError:  # pragma: no cover - Pydantic v2 без root_validator (т�
     root_validator = None  # type: ignore
 from typing import Dict, List, Optional, Tuple
 
+
 import inspect
 import json
 
-import httpx
 import base64
 import uuid
 import re
 import hashlib
 from io import BytesIO
 from PIL import Image
+import httpx
 
 _NOTE_RESERVED_TOP_LEVEL_KEYS = {"tags", "images", "dedup_key"}
 
@@ -127,6 +131,9 @@ def _coerce_note_fields(cls, values):
 
 app = FastMCP("anki-mcp")
 
+if not hasattr(app, "action"):
+    setattr(app, "action", app.tool)
+
 
 def _env_default(name: str, fallback: str) -> str:
     value = os.environ.get(name)
@@ -136,10 +143,29 @@ def _env_default(name: str, fallback: str) -> str:
     return trimmed or fallback
 
 
+def _env_optional(name: str) -> Optional[str]:
+    value = os.environ.get(name)
+    if value is None:
+        return None
+    trimmed = value.strip()
+    return trimmed or None
+
+
 DEFAULT_DECK = _env_default("ANKI_DEFAULT_DECK", "Default")
 DEFAULT_MODEL = _env_default("ANKI_DEFAULT_MODEL", "Basic")
+SEARCH_API_URL = _env_optional("SEARCH_API_URL")
+SEARCH_API_KEY = _env_optional("SEARCH_API_KEY")
 
 _ENVIRONMENT_INFO = {"defaultDeck": DEFAULT_DECK, "defaultModel": DEFAULT_MODEL}
+
+
+T_Model = TypeVar("T_Model", bound=BaseModel)
+
+
+def _model_validate(model: Type[T_Model], data: Any) -> T_Model:
+    if hasattr(model, "model_validate"):
+        return model.model_validate(data)  # type: ignore[attr-defined]
+    return model.parse_obj(data)  # type: ignore[attr-defined]
 
 
 async def _build_manifest() -> dict:
@@ -178,7 +204,7 @@ def _normalize_manifest(manifest: dict) -> dict:
         env_section = dict(normalized.get("environment", {}))
         env_section.update(_ENVIRONMENT_INFO)
         normalized["environment"] = env_section
-        return normalized
+        return _ensure_search_capability(normalized)
 
     environment = dict(manifest.get("environment", {}))
     environment.update(_ENVIRONMENT_INFO)
@@ -203,7 +229,20 @@ def _normalize_manifest(manifest: dict) -> dict:
     if environment:
         normalized["environment"] = environment
 
-    return normalized
+    return _ensure_search_capability(normalized)
+
+
+def _ensure_search_capability(manifest: dict) -> dict:
+    capabilities = dict(manifest.get("capabilities", {}))
+    existing_search = capabilities.get("search")
+    if isinstance(existing_search, dict):
+        updated_search = dict(existing_search)
+        updated_search["enabled"] = True
+    else:
+        updated_search = {"enabled": True}
+    capabilities["search"] = updated_search
+    manifest["capabilities"] = capabilities
+    return manifest
 
 
 @app.custom_route("/", methods=["GET"])
@@ -272,6 +311,69 @@ class ModelInfo(BaseModel):
     fields: List[str]
     templates: Dict[str, Dict[str, str]]  # {"Card 1": {"Front":"...", "Back":"..."}}
     styling: str
+
+
+class SearchRequest(BaseModel):
+    query: constr(strip_whitespace=True, min_length=1)
+    limit: Optional[int] = Field(default=None, ge=1)
+    cursor: Optional[constr(strip_whitespace=True, min_length=1)] = None
+
+    if ConfigDict is not None:  # pragma: no branch
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover
+        class Config:
+            allow_population_by_field_name = True
+
+
+class SearchResult(BaseModel):
+    title: Optional[str] = None
+    url: Optional[AnyHttpUrl] = None
+    snippet: Optional[str] = None
+    content: Optional[str] = None
+    score: Optional[float] = None
+
+    if ConfigDict is not None:  # pragma: no branch
+        model_config = ConfigDict(extra="allow")
+    else:  # pragma: no cover
+        class Config:
+            extra = "allow"
+
+
+class SearchResponse(BaseModel):
+    results: List[SearchResult] = Field(default_factory=list)
+    next_cursor: Optional[str] = Field(default=None, alias="nextCursor")
+
+    if ConfigDict is not None:  # pragma: no branch
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover
+        class Config:
+            allow_population_by_field_name = True
+
+
+def _normalize_search_payload(raw_payload: Any) -> dict:
+    if not isinstance(raw_payload, dict):
+        raise ValueError("Search API response must be a JSON object")
+
+    payload = dict(raw_payload)
+    results = payload.get("results")
+    if results is None and "items" in payload:
+        results = payload["items"]
+
+    if results is None:
+        raise ValueError("Search API response is missing 'results'")
+    if not isinstance(results, list):
+        raise ValueError("Search API 'results' must be a list")
+
+    next_cursor = payload.get("nextCursor")
+    if next_cursor is None:
+        next_cursor = payload.get("next_cursor")
+    if next_cursor is None:
+        next_cursor = payload.get("nextPageToken") or payload.get("next_page_token")
+
+    normalized: Dict[str, Any] = {"results": results}
+    if next_cursor is not None:
+        normalized["nextCursor"] = next_cursor
+    return normalized
 
 
 # ======================== УТИЛИТЫ ========================
@@ -450,6 +552,36 @@ def normalize_and_validate_note_fields(
         )
 
     return fields
+
+
+# ======================== ДЕЙСТВИЯ ========================
+
+
+@app.action(name="search")
+async def search(request: SearchRequest) -> SearchResponse:
+    if not SEARCH_API_URL:
+        raise RuntimeError("SEARCH_API_URL is not configured")
+
+    payload: Dict[str, Any] = {"query": request.query}
+    if request.limit is not None:
+        payload["limit"] = request.limit
+    if request.cursor is not None:
+        payload["cursor"] = request.cursor
+
+    headers: Dict[str, str] = {}
+    if SEARCH_API_KEY:
+        headers["Authorization"] = f"Bearer {SEARCH_API_KEY}"
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.post(
+            SEARCH_API_URL,
+            json=payload,
+            headers=headers or None,
+        )
+
+    response.raise_for_status()
+    normalized_payload = _normalize_search_payload(response.json())
+    return _model_validate(SearchResponse, normalized_payload)
 
 
 # ======================== ИНСТРУМЕНТЫ ========================
