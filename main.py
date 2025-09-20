@@ -7,6 +7,7 @@ import signal
 import subprocess
 import threading
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 
@@ -150,9 +151,20 @@ def ngrok_api_alive() -> bool:
         return False
 
 
+def _parse_addr(addr: str):
+    if not addr:
+        return None, None
+    candidate = addr if "://" in addr else f"http://{addr}"
+    try:
+        parsed = urlparse(candidate)
+    except ValueError:
+        return None, None
+    return parsed.hostname, parsed.port
+
+
 def get_ngrok_url(timeout=20):
     t0 = time.time()
-    target_addr = f"127.0.0.1:{PORT}"
+    loopback_hosts = {"127.0.0.1", "localhost", "::1"}
     while time.time() - t0 < timeout:
         try:
             r = requests.get(NGROK_API, timeout=2)
@@ -162,10 +174,8 @@ def get_ngrok_url(timeout=20):
                 if t.get("proto") != "https":
                     continue
                 config = t.get("config") or {}
-                addr = config.get("addr", "")
-                if "://" in addr:
-                    addr = addr.split("://", 1)[1]
-                if addr == target_addr:
+                host, port = _parse_addr(config.get("addr", ""))
+                if host and host.lower() in loopback_hosts and port == PORT:
                     return t.get("public_url")
         except Exception:
             pass
