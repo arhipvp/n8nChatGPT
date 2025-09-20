@@ -74,3 +74,25 @@ def test_fetch_image_handles_extremely_thin_image(monkeypatch):
 
     assert isinstance(result, str)
     assert len(result) > 0
+
+
+def test_fetch_image_single_pixel_width_does_not_raise_value_error(monkeypatch):
+    buf = BytesIO()
+    Image.new("RGB", (1, 512), color="white").save(buf, format="JPEG")
+    response = DummyResponse(buf.getvalue())
+
+    monkeypatch.setattr(
+        server.httpx,
+        "AsyncClient",
+        lambda *args, **kwargs: DummyAsyncClient(response),
+    )
+
+    try:
+        result = asyncio.run(
+            server.fetch_image_as_base64("http://example.com/tiny.jpg", max_side=64)
+        )
+    except ValueError as exc:  # pragma: no cover - explicit failure path for clarity
+        pytest.fail(f"Unexpected ValueError during resize: {exc}")
+
+    assert isinstance(result, str)
+    assert result
