@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from fastmcp import FastMCP
 try:
     from fastmcp.utilities.inspect import format_mcp_info as _format_mcp_info
@@ -43,6 +45,20 @@ from PIL import Image
 app = FastMCP("anki-mcp")
 
 
+def _env_default(name: str, fallback: str) -> str:
+    value = os.environ.get(name)
+    if value is None:
+        return fallback
+    trimmed = value.strip()
+    return trimmed or fallback
+
+
+DEFAULT_DECK = _env_default("ANKI_DEFAULT_DECK", "Default")
+DEFAULT_MODEL = _env_default("ANKI_DEFAULT_MODEL", "Basic")
+
+_ENVIRONMENT_INFO = {"defaultDeck": DEFAULT_DECK, "defaultModel": DEFAULT_MODEL}
+
+
 async def _build_manifest() -> dict:
     """Собирает MCP-манифест, используя fastmcp или запасную реализацию."""
 
@@ -57,13 +73,13 @@ async def _build_manifest() -> dict:
         return _normalize_manifest(manifest)
 
     # Запасной вариант для тестов без fastmcp: возвращаем минимально корректную структуру
-    return {
+    return _normalize_manifest({
         "mcp": {"version": "0.1.0"},
         "server": {"name": getattr(app, "name", "anki-mcp")},
         "tools": [],
         "resources": [],
         "prompts": [],
-    }
+    })
 
 
 async def _manifest_response() -> JSONResponse:
@@ -75,9 +91,14 @@ def _normalize_manifest(manifest: dict) -> dict:
     """Приводит ответ fastmcp к структуре, ожидаемой спецификацией MCP."""
 
     if "mcp" in manifest and "server" in manifest:
-        return manifest
+        normalized = dict(manifest)
+        env_section = dict(normalized.get("environment", {}))
+        env_section.update(_ENVIRONMENT_INFO)
+        normalized["environment"] = env_section
+        return normalized
 
-    environment = manifest.get("environment", {})
+    environment = dict(manifest.get("environment", {}))
+    environment.update(_ENVIRONMENT_INFO)
     server_info = manifest.get("serverInfo", {})
 
     normalized: dict = {
@@ -133,8 +154,8 @@ class NoteInput(BaseModel):
 
 
 class AddNotesArgs(BaseModel):
-    deck: constr(strip_whitespace=True, min_length=1)
-    model: constr(strip_whitespace=True, min_length=1)  # "Basic" / "Cloze" / кастомная
+    deck: constr(strip_whitespace=True, min_length=1) = Field(default=DEFAULT_DECK)
+    model: constr(strip_whitespace=True, min_length=1) = Field(default=DEFAULT_MODEL)  # "Basic" / "Cloze" / кастомная
     notes: List[NoteInput] = Field(min_length=1)
 
 
@@ -306,7 +327,7 @@ async def model_info(model: str) -> ModelInfo:
 
 
 @app.tool(name="anki.add_from_model")
-async def add_from_model(deck: str, model: str, items: List[NoteInput]) -> AddNotesResult:
+async def add_from_model(deck: str = DEFAULT_DECK, model: str = DEFAULT_MODEL, items: Optional[List[NoteInput]] = None) -> AddNotesResult:
     """
     Добавляет заметки, предварительно запрашивая действующие поля модели.
     Дополнительно:
@@ -314,6 +335,9 @@ async def add_from_model(deck: str, model: str, items: List[NoteInput]) -> AddNo
       файл сохраняется в медиа, поле заменяется на имя файла (img_xxx.png).
     - Поддерживает images[] (url/base64) c подстановкой <img> в target_field.
     """
+    if items is None:
+        raise ValueError("items must be provided")
+
     await anki_call("createDeck", {"deck": deck})
 
     model_fields, _, _ = await get_model_fields_templates(model)
