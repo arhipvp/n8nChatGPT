@@ -114,7 +114,15 @@ from io import BytesIO
 from PIL import Image
 import httpx
 
-_NOTE_RESERVED_TOP_LEVEL_KEYS = {"tags", "images", "dedup_key"}
+_NOTE_RESERVED_TOP_LEVEL_KEYS = {
+    "tags",
+    "images",
+    "dedup_key",
+    "deck",
+    "model",
+    "deckName",
+    "modelName",
+}
 
 
 def _coerce_note_fields(cls, values):
@@ -334,6 +342,18 @@ class NoteInput(BaseModel):
     tags: List[str] = Field(default_factory=list)
     images: List[ImageSpec] = Field(default_factory=list)
     dedup_key: Optional[str] = None  # произвольная строка для идемпотентности
+    deck: Optional[constr(strip_whitespace=True, min_length=1)] = Field(
+        default=None, alias="deckName"
+    )
+    model: Optional[constr(strip_whitespace=True, min_length=1)] = Field(
+        default=None, alias="modelName"
+    )
+
+    if ConfigDict is not None:  # pragma: no branch - для Pydantic v2
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover - используется в Pydantic v1
+        class Config:
+            allow_population_by_field_name = True
 
     if model_validator is not None:  # pragma: no branch - конкретная ветка зависит от версии Pydantic
 
@@ -917,11 +937,35 @@ async def add_from_model(
 
         normalized_items.append(note)
 
+    decks_to_create = {deck}
+    model_fields_cache: Dict[str, List[str]] = {}
+    field_aliases_cache: Dict[str, Dict[str, str]] = {}
+
+    async def _ensure_model_context(model_name: str) -> Tuple[List[str], Dict[str, str]]:
+        cached_fields = model_fields_cache.get(model_name)
+        if cached_fields is None:
+            fields, _, _ = await get_model_fields_templates(model_name)
+            model_fields_cache[model_name] = fields
+            field_aliases_cache[model_name] = {field.lower(): field for field in fields}
+        return model_fields_cache[model_name], field_aliases_cache[model_name]
+
+    for note in normalized_items:
+        if note.deck:
+            decks_to_create.add(note.deck)
+
+    for deck_name in decks_to_create:
+        await anki_call("createDeck", {"deck": deck_name})
+
     notes_payload: List[dict] = []
     results: List[dict] = []
     added = skipped = 0
 
     for i, note in enumerate(normalized_items):
+        note_deck = note.deck or deck
+        note_model = note.model or model
+
+        model_fields, field_aliases = await _ensure_model_context(note_model)
+
         # 1) нормализуем поля под модель с валидацией
         fields = normalize_and_validate_note_fields(note.fields, model_fields)
 
@@ -966,8 +1010,8 @@ async def add_from_model(
                 results.append({"index": i, "warn": f"store_media_failed: {e}"})
 
         notes_payload.append({
-            "deckName": deck,
-            "modelName": model,
+            "deckName": note_deck,
+            "modelName": note_model,
             "fields": fields,
             "tags": note.tags,
             "options": {"allowDuplicate": False}
@@ -999,18 +1043,38 @@ async def add_from_model(
 # Низкоуровневый батч без авто-подтягивания полей модели (оставил для совместимости)
 @app.tool(name="anki.add_notes")
 async def add_notes(args: AddNotesArgs) -> AddNotesResult:
-    await anki_call("createDeck", {"deck": args.deck})
-
-    model_fields, _, _ = await get_model_fields_templates(args.model)
-
-    canonical_field_map = {field.lower(): field for field in model_fields}
-
     notes_payload: List[dict] = []
     results: List[dict] = []
     added = skipped = 0
     normalized_notes: List[NoteInput] = list(args.notes)
 
+    decks_to_create = {args.deck}
+    model_fields_cache: Dict[str, List[str]] = {}
+    canonical_field_map_cache: Dict[str, Dict[str, str]] = {}
+
+    async def _ensure_model_context(model_name: str) -> Tuple[List[str], Dict[str, str]]:
+        cached_fields = model_fields_cache.get(model_name)
+        if cached_fields is None:
+            fields, _, _ = await get_model_fields_templates(model_name)
+            model_fields_cache[model_name] = fields
+            canonical_field_map_cache[model_name] = {
+                field.lower(): field for field in fields
+            }
+        return model_fields_cache[model_name], canonical_field_map_cache[model_name]
+
+    for note in normalized_notes:
+        if note.deck:
+            decks_to_create.add(note.deck)
+
+    for deck_name in decks_to_create:
+        await anki_call("createDeck", {"deck": deck_name})
+
     for i, note in enumerate(normalized_notes):
+        note_deck = note.deck or args.deck
+        note_model = note.model or args.model
+
+        model_fields, canonical_field_map = await _ensure_model_context(note_model)
+
         fields = normalize_and_validate_note_fields(note.fields, model_fields)
 
         # data URL прямо в полях
@@ -1052,8 +1116,8 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
                 results.append({"index": i, "warn": f"store_media_failed: {e}"})
 
         notes_payload.append({
-            "deckName": args.deck,
-            "modelName": args.model,
+            "deckName": note_deck,
+            "modelName": note_model,
             "fields": fields,
             "tags": note.tags,
             "options": {"allowDuplicate": False}
