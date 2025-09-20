@@ -140,7 +140,9 @@ async def test_add_from_model_target_field_is_case_insensitive(monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_add_from_model_invalid_target_field_reports_details(monkeypatch):
+async def test_add_from_model_unknown_target_field_warn(monkeypatch):
+    captured: dict[str, object] = {}
+
     async def fake_anki_call(action: str, params: dict):
         if action == "createDeck":
             return True
@@ -150,6 +152,9 @@ async def test_add_from_model_invalid_target_field_reports_details(monkeypatch):
             return {"Card 1": {"Front": "{{Front}}", "Back": "{{Back}}"}}
         if action == "modelStyling":
             return {"css": ""}
+        if action == "addNotes":
+            captured["addNotes"] = params
+            return [4321]
         raise AssertionError(f"unexpected action: {action}")
 
     monkeypatch.setattr(server, "anki_call", fake_anki_call)
@@ -157,12 +162,17 @@ async def test_add_from_model_invalid_target_field_reports_details(monkeypatch):
     image = server.ImageSpec(image_base64="data:image/png;base64,Zm9v", target_field="Summary")
     note = server.NoteInput(fields={"Front": "Question"}, images=[image])
 
-    with pytest.raises(ValueError) as excinfo:
-        await server.add_from_model.fn("Default", "Basic", [note])
+    result = await server.add_from_model.fn("Default", "Basic", [note])
 
-    message = str(excinfo.value)
-    assert "note index 0" in message
-    assert "'Front'" in message and "'Back'" in message
+    assert result.added == 1
+    warns = [detail for detail in result.details if detail.get("warn") == "unknown_target_field"]
+    assert warns and warns[0]["index"] == 0
+    assert warns[0]["field"] == "Summary"
+
+    add_notes_payload = captured.get("addNotes")
+    assert isinstance(add_notes_payload, dict)
+    note_fields = add_notes_payload["notes"][0]["fields"]
+    assert note_fields.get("Back", "") == ""
 
 
 @pytest.mark.anyio
@@ -181,6 +191,12 @@ async def test_note_input_accepts_url_alias(monkeypatch):
         if action == "createDeck":
             captured["createDeck"] = params
             return True
+        if action == "modelFieldNames":
+            return ["Front", "Back"]
+        if action == "modelTemplates":
+            return {"Card 1": {"Front": "{{Front}}", "Back": "{{Back}}"}}
+        if action == "modelStyling":
+            return {"css": ""}
         if action == "addNotes":
             captured["addNotes"] = params
             return [987]
