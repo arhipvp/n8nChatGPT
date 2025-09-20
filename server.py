@@ -83,7 +83,9 @@ async def fetch_image_as_base64(url: str, max_side: int) -> str:
         w, h = im.size
         scale = max(w, h) / max_side if max(w, h) > max_side else 1.0
         if scale > 1.0:
-            im = im.resize((int(w / scale), int(h / scale)))
+            new_w = max(1, round(w / scale))
+            new_h = max(1, round(h / scale))
+            im = im.resize((new_w, new_h))
         buf = BytesIO()
         im.save(buf, format="JPEG", quality=85)
         content = buf.getvalue()
