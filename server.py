@@ -422,12 +422,29 @@ async def fetch_image_as_base64(url: str, max_side: int) -> str:
     return base64.b64encode(content).decode("ascii")
 
 
+IMG_TAG_TEMPLATE = '<div><img src="{src}" style="max-width:100%;height:auto"/></div>'
+
+
+def build_img_tag(fname: str) -> str:
+    return IMG_TAG_TEMPLATE.format(src=fname)
+
+
 def ensure_img_tag(existing: str, fname: str) -> str:
-    tag = f'<div><img src="{fname}" style="max-width:100%;height:auto"/></div>'
-    return (existing or "") + ("\n\n" if existing else "") + tag
+    existing = existing or ""
+    tag = build_img_tag(fname)
+    if re.search(rf'src=["\']{re.escape(fname)}["\']', existing, re.IGNORECASE):
+        return existing
+
+    trimmed = existing.rstrip()
+    if not trimmed:
+        return tag
+    return f"{trimmed}\n\n{tag}"
 
 
 DATA_URL_RE = re.compile(r"^data:image/([a-zA-Z0-9+.\-]+);base64,(.+)$", re.IGNORECASE)
+DATA_URL_INLINE_RE = re.compile(
+    r"data:image/([a-zA-Z0-9+.\-]+);base64,([a-zA-Z0-9+/=]+)", re.IGNORECASE
+)
 
 
 def ext_from_mime(mime_subtype: str) -> str:
@@ -469,34 +486,65 @@ def sanitize_image_payload(payload: str) -> Tuple[str, Optional[str]]:
     return clean_b64, None
 
 
-async def process_data_urls_in_fields(fields: Dict[str, str], results: List[dict], note_index: int):
+async def process_data_urls_in_fields(
+    fields: Dict[str, str], results: List[dict], note_index: int
+):
+    """Находит data URL в строковых полях, сохраняет их как медиа и вставляет `<img>`.
+
+    Поле приводится к тому же формату, что и при обработке `images[]`, при этом
+    сохраняется произвольный текст и уже добавленные теги `<img>` не дублируются.
     """
-    Находит в строковых полях data URL вида data:image/...;base64,AAA...
-    Сохраняет как медиа-файл в Anki и заменяет значение поля на имя файла.
-    """
+
     for key, value in list(fields.items()):
         if not isinstance(value, str):
             continue
-        value = value.strip()
-        m = DATA_URL_RE.match(value)
-        if not m:
+
+        matches = list(DATA_URL_INLINE_RE.finditer(value))
+        if not matches:
+            trimmed = value.strip()
+            m = DATA_URL_RE.match(trimmed)
+            matches = [m] if m else []
+            if matches:
+                value = trimmed
+        if not matches:
             continue
 
-        try:
-            clean_b64, ext_hint = sanitize_image_payload(value)
-            raw = base64.b64decode(clean_b64, validate=True)
-            # имя по хэшу содержимого
-            digest = hashlib.sha1(raw).hexdigest()  # компактно и детерминировано
-            mime_subtype = m.group(1)
-            extension = ext_hint or ext_from_mime(mime_subtype)
-            fname = f"img_{digest}.{extension}"
-            # сохраняем
-            await store_media_file(fname, clean_b64)
-            # подменяем поле на имя файла (шаблон {{Image}} сам подставит <img src="{{Image}}">)
-            fields[key] = fname
-            results.append({"index": note_index, "info": f"data_url_saved:{key}->{fname}"})
-        except Exception as e:
-            results.append({"index": note_index, "warn": f"data_url_failed:{key}: {e}"})
+        saved_files: List[str] = []
+        rebuilt: List[str] = []
+        cursor = 0
+
+        for match in matches:
+            data_url = match.group(0)
+            try:
+                clean_b64, ext_hint = sanitize_image_payload(data_url)
+                raw = base64.b64decode(clean_b64, validate=True)
+                digest = hashlib.sha1(raw).hexdigest()
+                mime_subtype = match.group(1) if match.lastindex else None
+                extension = ext_hint or (
+                    ext_from_mime(mime_subtype) if mime_subtype else "png"
+                )
+                fname = f"img_{digest}.{extension}"
+                await store_media_file(fname, clean_b64)
+                saved_files.append(fname)
+                results.append(
+                    {"index": note_index, "info": f"data_url_saved:{key}->{fname}"}
+                )
+            except Exception as e:
+                results.append({"index": note_index, "warn": f"data_url_failed:{key}: {e}"})
+                rebuilt.append(value[cursor : match.end()])
+                cursor = match.end()
+                continue
+
+            rebuilt.append(value[cursor : match.start()])
+            cursor = match.end()
+
+        rebuilt.append(value[cursor:])
+        new_value = "".join(rebuilt)
+        clean_text = new_value.strip()
+        for fname in saved_files:
+            clean_text = ensure_img_tag(clean_text, fname)
+
+        fields[key] = clean_text
 
 
 async def get_model_fields_templates(model: str) -> Tuple[List[str], Dict[str, Dict[str, str]], str]:
@@ -713,7 +761,7 @@ async def add_from_model(
     try:
         res = await anki_call("addNotes", {"notes": notes_payload})
         for idx, note_id in enumerate(res):
-            dedup_key = items[idx].dedup_key
+            dedup_key = normalized_items[idx].dedup_key
             if note_id is None:
                 skipped += 1
                 detail = {"index": idx, "status": "duplicate"}
@@ -744,8 +792,9 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
     notes_payload: List[dict] = []
     results: List[dict] = []
     added = skipped = 0
+    normalized_notes: List[NoteInput] = list(args.notes)
 
-    for i, note in enumerate(args.notes):
+    for i, note in enumerate(normalized_notes):
         fields = normalize_and_validate_note_fields(note.fields, model_fields)
 
         # data URL прямо в полях
@@ -797,7 +846,7 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
     try:
         res = await anki_call("addNotes", {"notes": notes_payload})
         for idx, note_id in enumerate(res):
-            dedup_key = args.notes[idx].dedup_key
+            dedup_key = normalized_notes[idx].dedup_key
             if note_id is None:
                 skipped += 1
                 detail = {"index": idx, "status": "duplicate"}
