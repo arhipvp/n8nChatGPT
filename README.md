@@ -65,12 +65,9 @@
 
 ### Шаблон «Front»
 ```html
-
 <div class="prompt">{{Prompt}}</div>
-<div class="context">{{Context}}</div>
-<div class="sentence">{{Sentence}}</div>
-<div class="hint">{{Hint}}</div>
-{{tts de_DE voices=AwesomeTTS:Sentence}}
+{{#Context}}<div class="context">{{Context}}</div>{{/Context}}
+{{tts de_DE voices=AwesomeTTS:Prompt}}
 ```
 
 ### Шаблон «Back»
@@ -78,7 +75,7 @@
 {{FrontSide}}
 <hr id="answer">
 <div class="response">{{Response}}</div>
-<div class="sources">{{Sources}}</div>
+{{#Sources}}<div class="sources">{{Sources}}</div>{{/Sources}}
 ```
 
 ### CSS модели
@@ -116,7 +113,7 @@
 ```
 
 
-TTS-вызов `{{tts de_DE voices=AwesomeTTS:Sentence}}` размещён на лицевой стороне и использует плагин AwesomeTTS с голосовым профилем `Sentence`, привязанным к полю `Sentence`. Убедитесь, что соответствующий профиль активирован в Anki, иначе воспроизведение произойдёт с настройками по умолчанию.
+TTS-вызов `{{tts de_DE voices=AwesomeTTS:Prompt}}` размещён на лицевой стороне и использует плагин AwesomeTTS с голосовым профилем, привязанным к полю `Prompt`. Убедитесь, что соответствующий профиль активирован в Anki, иначе воспроизведение произойдёт с настройками по умолчанию.
 
 ## Локальный smoke-тест
 Запустите `python test_client.py`, чтобы проверить базовое взаимодействие с MCP-сервером без туннеля.
