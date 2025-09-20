@@ -177,3 +177,30 @@ def test_fetch_image_with_zero_max_side_raises_value_error(monkeypatch):
         asyncio.run(
             server.fetch_image_as_base64("http://example.com/image.jpg", max_side=0)
         )
+
+
+def test_fetch_image_converts_transparent_png_to_jpeg(monkeypatch):
+    buf = BytesIO()
+    Image.new("RGBA", (16, 16), color=(128, 64, 255, 128)).save(buf, format="PNG")
+    original_payload = buf.getvalue()
+    response = DummyResponse(original_payload)
+
+    monkeypatch.setattr(
+        server.httpx,
+        "AsyncClient",
+        lambda *args, **kwargs: DummyAsyncClient(response),
+    )
+
+    data_b64 = asyncio.run(
+        server.fetch_image_as_base64("http://example.com/alpha.png", max_side=32)
+    )
+
+    converted = base64.b64decode(data_b64)
+
+    # Должны получить JPEG, а не исходный PNG
+    assert converted != original_payload
+    assert converted.startswith(b"\xff\xd8\xff")
+
+    with Image.open(BytesIO(converted)) as img:
+        assert img.format == "JPEG"
+        assert img.mode == "RGB"
