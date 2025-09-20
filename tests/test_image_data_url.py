@@ -116,6 +116,12 @@ async def test_note_input_accepts_url_alias(monkeypatch):
         if action == "createDeck":
             captured["createDeck"] = params
             return True
+        if action == "modelFieldNames":
+            return ["Front", "Back"]
+        if action == "modelTemplates":
+            return {"Card 1": {"Front": "{{Front}}", "Back": "{{Back}}"}}
+        if action == "modelStyling":
+            return {"css": ""}
         if action == "addNotes":
             captured["addNotes"] = params
             return [987]

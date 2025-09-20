@@ -379,6 +379,26 @@ def normalize_fields_for_model(
     return normalized, len(matched_keys), sorted(unknown_fields)
 
 
+def ensure_required_first_field(
+    model_fields: List[str],
+    normalized_fields: Dict[str, str],
+    matched_count: int,
+    unknown_fields: List[str],
+) -> None:
+    if not model_fields:
+        raise ValueError("Model has no fields defined")
+
+    if matched_count == 0 or not normalized_fields.get(model_fields[0]):
+        expected = ", ".join(repr(name) for name in model_fields)
+        provided = ", ".join(repr(name) for name in unknown_fields)
+        raise ValueError(
+            "Unknown note fields: "
+            f"[{provided}]"  # квадратные скобки для единообразия с ожиданиями теста
+            f". Expected fields: [{expected}]. "
+            f"Ensure required field '{model_fields[0]}' is provided."
+        )
+
+
 # ======================== ИНСТРУМЕНТЫ ========================
 
 @app.tool(name="anki.model_info")
@@ -416,15 +436,7 @@ async def add_from_model(deck: str = DEFAULT_DECK, model: str = DEFAULT_MODEL, i
             note.fields, model_fields
         )
 
-        if matched_count == 0 or not fields.get(model_fields[0]):
-            expected = ", ".join(repr(name) for name in model_fields)
-            provided = ", ".join(repr(name) for name in unknown_fields)
-            raise ValueError(
-                "Unknown note fields: "
-                f"[{provided}]"  # квадратные скобки для единообразия с ожиданиями теста
-                f". Expected fields: [{expected}]. "
-                f"Ensure required field '{model_fields[0]}' is provided."
-            )
+        ensure_required_first_field(model_fields, fields, matched_count, unknown_fields)
 
         # 2) data URL внутри полей (например, поле Image)
         await process_data_urls_in_fields(fields, results, i)
@@ -492,12 +504,18 @@ async def add_from_model(deck: str = DEFAULT_DECK, model: str = DEFAULT_MODEL, i
 async def add_notes(args: AddNotesArgs) -> AddNotesResult:
     await anki_call("createDeck", {"deck": args.deck})
 
+    model_fields, _, _ = await get_model_fields_templates(args.model)
+
     notes_payload: List[dict] = []
     results: List[dict] = []
     added = skipped = 0
 
     for i, note in enumerate(args.notes):
-        fields = {k: (v or "") for k, v in note.fields.items()}
+        fields, matched_count, unknown_fields = normalize_fields_for_model(
+            note.fields, model_fields
+        )
+
+        ensure_required_first_field(model_fields, fields, matched_count, unknown_fields)
 
         # data URL прямо в полях
         await process_data_urls_in_fields(fields, results, i)

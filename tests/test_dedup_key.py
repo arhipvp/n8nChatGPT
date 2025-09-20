@@ -81,6 +81,12 @@ async def test_add_notes_includes_dedup_key(monkeypatch):
     async def fake_anki_call(action, params):
         if action == "createDeck":
             return None
+        if action == "modelFieldNames":
+            return ["Front", "Back"]
+        if action == "modelTemplates":
+            return {}
+        if action == "modelStyling":
+            return {"css": ""}
         if action == "addNotes":
             return [202, None]
         raise AssertionError(f"Unexpected action: {action}")
@@ -104,3 +110,36 @@ async def test_add_notes_includes_dedup_key(monkeypatch):
     assert result.details[0]["dedup_key"] == "alpha"
     assert result.details[1]["status"] == "duplicate"
     assert result.details[1]["dedup_key"] == "beta"
+
+
+@pytest.mark.anyio
+async def test_add_notes_lowercase_fields_clear_error(monkeypatch):
+    async def fake_anki_call(action, params):
+        if action == "createDeck":
+            return None
+        if action == "modelFieldNames":
+            return ["Front", "Back"]
+        if action == "modelTemplates":
+            return {}
+        if action == "modelStyling":
+            return {"css": ""}
+        if action == "addNotes":  # pragma: no cover - should not be called
+            raise AssertionError("addNotes must not be invoked when fields invalid")
+        raise AssertionError(f"Unexpected action: {action}")
+
+    monkeypatch.setattr("server.anki_call", fake_anki_call)
+
+    args = AddNotesArgs(
+        deck="Deck",
+        model="Basic",
+        notes=[
+            NoteInput(fields={"front": "", "back": "Answer"}),
+        ],
+    )
+
+    with pytest.raises(ValueError) as excinfo:
+        await add_notes.fn(args)
+
+    message = str(excinfo.value)
+    assert "Unknown note fields: []" in message
+    assert "Ensure required field 'Front' is provided." in message
