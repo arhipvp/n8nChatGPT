@@ -73,19 +73,21 @@ def _start_reader(proc, name):
 def find_ngrok_exe() -> str:
     """
     Ищем ngrok:
-    - локально в проекте (./ngrok.exe / ./ngrok)
+    - локально в каталоге проекта рядом со скриптом (./ngrok.exe / ./ngrok)
     - в PATH (shutil.which)
     - в типичных папках Windows
     """
-    here = ROOT
-    for candidate in ["ngrok.exe", "ngrok"]:
-        p = here / candidate
-        if p.exists():
-            return str(p)
 
-    p = shutil.which("ngrok")
-    if p:
-        return p
+    here = Path(ROOT).resolve()
+    local_candidates = [here / "ngrok.exe", here / "ngrok"]
+    for candidate in local_candidates:
+        if candidate.is_file():
+            return str(candidate)
+
+    for name in ("ngrok", "ngrok.exe"):
+        p = shutil.which(name)
+        if p:
+            return p
 
     # типичные места для Windows
     candidates = [
