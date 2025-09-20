@@ -1,22 +1,11 @@
 import sys
-import types
 from pathlib import Path
 
 import pytest
 
+from _fastmcp_stub import ensure_stub_installed
 
-class _FakeFastMCP:
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def tool(self, *args, **kwargs):
-        def decorator(func):
-            return func
-
-        return decorator
-
-
-sys.modules.setdefault("fastmcp", types.ModuleType("fastmcp")).FastMCP = _FakeFastMCP
+ensure_stub_installed()
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:

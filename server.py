@@ -199,7 +199,7 @@ def ensure_img_tag(existing: str, fname: str) -> str:
     return (existing or "") + ("\n\n" if existing else "") + tag
 
 
-DATA_URL_RE = re.compile(r"^data:image/([a-zA-Z0-9+.\-]+);base64,(.+)$")
+DATA_URL_RE = re.compile(r"^data:image/([a-zA-Z0-9+.\-]+);base64,(.+)$", re.DOTALL)
 
 
 def ext_from_mime(mime_subtype: str) -> str:
@@ -231,7 +231,8 @@ async def process_data_urls_in_fields(fields: Dict[str, str], results: List[dict
         mime_subtype, b64 = m.group(1), m.group(2)
         try:
             # нормализуем, валидируем base64
-            raw = base64.b64decode(b64, validate=True)
+            b64_clean = re.sub(r"\s+", "", b64)
+            raw = base64.b64decode(b64_clean, validate=True)
             # имя по хэшу содержимого
             digest = hashlib.sha1(raw).hexdigest()  # компактно и детерминировано
             fname = f"img_{digest}.{ext_from_mime(mime_subtype)}"
