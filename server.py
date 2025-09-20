@@ -903,9 +903,6 @@ async def add_from_model(
 
     await anki_call("createDeck", {"deck": deck})
 
-    model_fields, _, _ = await get_model_fields_templates(model)
-    field_aliases = {field.lower(): field for field in model_fields}
-
     normalized_items: List[NoteInput] = []
     for index, raw_item in enumerate(items):
         if isinstance(raw_item, NoteInput):
@@ -950,7 +947,7 @@ async def add_from_model(
     async def _ensure_model_context(model_name: str) -> Tuple[List[str], Dict[str, str]]:
         cached_fields = model_fields_cache.get(model_name)
         if cached_fields is None:
-            fields, _, _ = await get_model_fields_templates(model_name)
+            fields = await get_model_field_names(model_name)
             model_fields_cache[model_name] = fields
             field_aliases_cache[model_name] = {field.lower(): field for field in fields}
         return model_fields_cache[model_name], field_aliases_cache[model_name]

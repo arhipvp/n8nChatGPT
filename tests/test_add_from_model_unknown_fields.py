@@ -1,5 +1,6 @@
 import sys
 import types
+from collections import Counter
 from pathlib import Path
 from typing import List
 
@@ -9,13 +10,20 @@ import pytest
 try:  # pragma: no cover - exercised only when dependency missing
     import fastmcp as _fastmcp_mod  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover - executed in minimal test environments
+    class _FakeToolWrapper:
+        def __init__(self, func):
+            self.fn = func
+
+        def __call__(self, *args, **kwargs):
+            return self.fn(*args, **kwargs)
+
     class _FakeFastMCP:
         def __init__(self, *args, **kwargs):
             pass
 
         def tool(self, *args, **kwargs):
             def decorator(func):
-                return func
+                return _FakeToolWrapper(func)
 
             return decorator
 
@@ -23,12 +31,30 @@ except ModuleNotFoundError:  # pragma: no cover - executed in minimal test envir
             return self.tool(*args, **kwargs)
 
         def http_app(self):  # minimal shim for tests needing HTTP app
-            import types as _types
+            async def _app(scope, receive, send):  # pragma: no cover - exercised in manifest tests
+                if scope.get("type") != "http":
+                    raise RuntimeError("Only HTTP scope is supported")
 
-            async def _noop_app(scope, receive, send):  # pragma: no cover
-                raise RuntimeError("ASGI app not available in tests")
+                path = scope.get("path", "")
+                method = scope.get("method", "GET").upper()
+                if method == "GET" and path in {"/", "/.well-known/mcp.json"}:
+                    from server import _manifest_response  # local import to avoid circular dependency
 
-            return _types.SimpleNamespace(__call__=_noop_app)
+                    response = await _manifest_response()
+                    await response(scope, receive, send)
+                    return
+
+                headers = [(b"content-type", b"application/json")]
+                status = 404 if method == "GET" else 405
+                body = b"{}"
+                await send({
+                    "type": "http.response.start",
+                    "status": status,
+                    "headers": headers,
+                })
+                await send({"type": "http.response.body", "body": body, "more_body": False})
+
+            return _app
 
     sys.modules.setdefault("fastmcp", types.ModuleType("fastmcp")).FastMCP = _FakeFastMCP
 
@@ -47,15 +73,18 @@ def anyio_backend():
 
 @pytest.mark.anyio
 async def test_add_from_model_unknown_fields_raise(monkeypatch):
+    field_calls = Counter()
+
     async def fake_anki_call(action, params):
         if action == "createDeck":
             return None
         if action == "modelFieldNames":
+            field_calls[params["modelName"]] += 1
             return ["Front", "Back"]
         if action == "modelTemplates":
-            return {}
+            raise AssertionError("modelTemplates should not be called")
         if action == "modelStyling":
-            return {"css": ""}
+            raise AssertionError("modelStyling should not be called")
         raise AssertionError(f"Unexpected action: {action}")
 
     monkeypatch.setattr("server.anki_call", fake_anki_call)
@@ -69,25 +98,28 @@ async def test_add_from_model_unknown_fields_raise(monkeypatch):
     assert "Unknown note fields" in message
     assert "'Question'" in message
     assert "'Front'" in message and "'Back'" in message
+    assert field_calls == Counter({"Basic": 1})
 
 
 @pytest.mark.anyio
 async def test_add_from_model_accepts_flat_fields(monkeypatch):
     captured_notes = {}
+    field_calls = Counter()
 
     async def fake_anki_call(action, params):
         nonlocal captured_notes
         if action == "createDeck":
             return None
         if action == "modelFieldNames":
+            field_calls[params["modelName"]] += 1
             return ["Front", "Back"]
-        if action == "modelTemplates":
-            return {}
-        if action == "modelStyling":
-            return {"css": ""}
         if action == "addNotes":
             captured_notes = params
             return [555]
+        if action == "modelTemplates":
+            raise AssertionError("modelTemplates should not be called")
+        if action == "modelStyling":
+            raise AssertionError("modelStyling should not be called")
         raise AssertionError(f"Unexpected action: {action}")
 
     monkeypatch.setattr("server.anki_call", fake_anki_call)
@@ -99,25 +131,28 @@ async def test_add_from_model_accepts_flat_fields(monkeypatch):
     assert result.added == 1
     assert captured_notes["notes"][0]["fields"] == {"Front": "Question?", "Back": "Answer!"}
     assert captured_notes["notes"][0]["tags"] == []
+    assert field_calls == Counter({"Basic": 1})
 
 
 @pytest.mark.anyio
 async def test_add_from_model_accepts_plain_dict(monkeypatch):
     captured_notes = {}
+    field_calls = Counter()
 
     async def fake_anki_call(action, params):
         nonlocal captured_notes
         if action == "createDeck":
             return None
         if action == "modelFieldNames":
+            field_calls[params["modelName"]] += 1
             return ["Front", "Back"]
-        if action == "modelTemplates":
-            return {}
-        if action == "modelStyling":
-            return {"css": ""}
         if action == "addNotes":
             captured_notes = params
             return [888]
+        if action == "modelTemplates":
+            raise AssertionError("modelTemplates should not be called")
+        if action == "modelStyling":
+            raise AssertionError("modelStyling should not be called")
         raise AssertionError(f"Unexpected action: {action}")
 
     monkeypatch.setattr("server.anki_call", fake_anki_call)
@@ -131,25 +166,28 @@ async def test_add_from_model_accepts_plain_dict(monkeypatch):
     assert result.added == 1
     assert captured_notes["notes"][0]["fields"] == {"Front": "Q", "Back": "A"}
     assert captured_notes["notes"][0]["tags"] == ["auto"]
+    assert field_calls == Counter({"Basic": 1})
 
 
 @pytest.mark.anyio
 async def test_add_from_model_normalizes_note_input_tags(monkeypatch):
     captured_notes = {}
+    field_calls = Counter()
 
     async def fake_anki_call(action, params):
         nonlocal captured_notes
         if action == "createDeck":
             return None
         if action == "modelFieldNames":
+            field_calls[params["modelName"]] += 1
             return ["Front", "Back"]
-        if action == "modelTemplates":
-            return {}
-        if action == "modelStyling":
-            return {"css": ""}
         if action == "addNotes":
             captured_notes = params
             return [999]
+        if action == "modelTemplates":
+            raise AssertionError("modelTemplates should not be called")
+        if action == "modelStyling":
+            raise AssertionError("modelStyling should not be called")
         raise AssertionError(f"Unexpected action: {action}")
 
     monkeypatch.setattr("server.anki_call", fake_anki_call)
@@ -160,6 +198,7 @@ async def test_add_from_model_normalizes_note_input_tags(monkeypatch):
 
     assert result.added == 1
     assert captured_notes["notes"][0]["tags"] == ["auto"]
+    assert field_calls == Counter({"Basic": 1})
 
 
 @pytest.mark.anyio
@@ -197,6 +236,7 @@ async def test_add_from_model_respects_note_level_deck_and_model(monkeypatch):
     captured_notes = {}
     create_calls: List[str] = []
     requested_models: List[str] = []
+    field_calls = Counter()
 
     fields_by_model = {
         "Basic": ["Front", "Back"],
@@ -211,14 +251,15 @@ async def test_add_from_model_respects_note_level_deck_and_model(monkeypatch):
         if action == "modelFieldNames":
             model_name = params["modelName"]
             requested_models.append(model_name)
+            field_calls[model_name] += 1
             return fields_by_model[model_name]
-        if action == "modelTemplates":
-            return {}
-        if action == "modelStyling":
-            return {"css": ""}
         if action == "addNotes":
             captured_notes = params
             return [111, 222]
+        if action == "modelTemplates":
+            raise AssertionError("modelTemplates should not be called")
+        if action == "modelStyling":
+            raise AssertionError("modelStyling should not be called")
         raise AssertionError(f"Unexpected action: {action}")
 
     monkeypatch.setattr("server.anki_call", fake_anki_call)
@@ -245,6 +286,7 @@ async def test_add_from_model_respects_note_level_deck_and_model(monkeypatch):
     assert captured_notes["notes"][1]["modelName"] == "Cloze"
     assert "deckName" not in captured_notes["notes"][1]["fields"]
     assert "modelName" not in captured_notes["notes"][1]["fields"]
+    assert field_calls == Counter({"Basic": 1, "Cloze": 1})
 
 
 @pytest.mark.anyio
