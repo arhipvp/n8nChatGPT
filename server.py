@@ -1,8 +1,36 @@
 from __future__ import annotations
 
 from fastmcp import FastMCP
+try:
+    from fastmcp.utilities.inspect import format_mcp_info as _format_mcp_info
+except Exception:  # pragma: no cover - fallback when fastmcp utilities unavailable
+    _format_mcp_info = None
+
+try:
+    from fastapi import Request
+    from fastapi.responses import JSONResponse
+except Exception:  # pragma: no cover - fallback when fastapi is unavailable
+    try:  # pragma: no cover - fallback if only Starlette is available
+        from starlette.requests import Request  # type: ignore
+    except Exception:  # pragma: no cover - fallback when neither is available
+        class Request:  # minimal placeholder for degraded environments
+            pass
+
+    class JSONResponse(dict):
+        def __init__(self, content, media_type: str = "application/json", status_code: int = 200, headers: Optional[dict] = None):
+            super().__init__()
+            self.content = content
+            self.media_type = media_type
+            self.status_code = status_code
+            self.headers = headers or {}
+
+        def __call__(self):  # pragma: no cover - used only in degraded environments
+            return self.content
 from pydantic import BaseModel, Field, constr, AnyHttpUrl
 from typing import Dict, List, Optional, Tuple
+
+import inspect
+import json
 
 import httpx
 import base64
@@ -13,6 +41,75 @@ from io import BytesIO
 from PIL import Image
 
 app = FastMCP("anki-mcp")
+
+
+async def _build_manifest() -> dict:
+    """Собирает MCP-манифест, используя fastmcp или запасную реализацию."""
+
+    if _format_mcp_info is not None:
+        manifest = _format_mcp_info(app)
+        if inspect.isawaitable(manifest):
+            manifest = await manifest
+        if isinstance(manifest, (bytes, bytearray)):
+            manifest = manifest.decode("utf-8")
+        if isinstance(manifest, str):
+            manifest = json.loads(manifest)
+        return _normalize_manifest(manifest)
+
+    # Запасной вариант для тестов без fastmcp: возвращаем минимально корректную структуру
+    return {
+        "mcp": {"version": "0.1.0"},
+        "server": {"name": getattr(app, "name", "anki-mcp")},
+        "tools": [],
+        "resources": [],
+        "prompts": [],
+    }
+
+
+async def _manifest_response() -> JSONResponse:
+    manifest = await _build_manifest()
+    return JSONResponse(manifest, media_type="application/json")
+
+
+def _normalize_manifest(manifest: dict) -> dict:
+    """Приводит ответ fastmcp к структуре, ожидаемой спецификацией MCP."""
+
+    if "mcp" in manifest and "server" in manifest:
+        return manifest
+
+    environment = manifest.get("environment", {})
+    server_info = manifest.get("serverInfo", {})
+
+    normalized: dict = {
+        "mcp": {"version": environment.get("mcp") or environment.get("protocol") or "0.1.0"},
+        "server": {"name": server_info.get("name") or getattr(app, "name", "anki-mcp")},
+        "tools": manifest.get("tools", []),
+        "resources": manifest.get("resources", []),
+        "prompts": manifest.get("prompts", []),
+    }
+
+    if server_info.get("version"):
+        normalized["server"]["version"] = server_info["version"]
+    if server_info.get("title"):
+        normalized["server"]["description"] = server_info["title"]
+    if "capabilities" in manifest:
+        normalized["capabilities"] = manifest.get("capabilities", {})
+    if "resourceTemplates" in manifest:
+        normalized["resourceTemplates"] = manifest.get("resourceTemplates", [])
+    if environment:
+        normalized["environment"] = environment
+
+    return normalized
+
+
+@app.custom_route("/", methods=["GET"])
+async def read_root(request: Request):  # pragma: no cover - trivial wrapper
+    return await _manifest_response()
+
+
+@app.custom_route("/.well-known/mcp.json", methods=["GET"])
+async def read_well_known_manifest(request: Request):  # pragma: no cover - trivial wrapper
+    return await _manifest_response()
 
 ANKI_URL = "http://127.0.0.1:8765"  # Anki + AnkiConnect must be running
 

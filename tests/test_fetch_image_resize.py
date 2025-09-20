@@ -16,17 +16,34 @@ def _field_stub(*args, **kwargs):
     return None
 
 
-fastmcp_stub = types.SimpleNamespace(
-    FastMCP=lambda *args, **kwargs: types.SimpleNamespace(tool=lambda *a, **kw: (lambda f: f))
-)
-pydantic_stub = types.SimpleNamespace(
-    BaseModel=object,
-    Field=_field_stub,
-    constr=lambda **kwargs: str,
-    AnyHttpUrl=str,
-)
-sys.modules.setdefault("fastmcp", fastmcp_stub)
-sys.modules.setdefault("pydantic", pydantic_stub)
+try:  # pragma: no cover - exercised only when dependency missing
+    import fastmcp as _fastmcp_mod  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - executed in minimal test environments
+    def _noop_decorator(*args, **kwargs):
+        def decorator(func):
+            return func
+
+        return decorator
+
+    fastmcp_stub = types.SimpleNamespace(
+        FastMCP=lambda *args, **kwargs: types.SimpleNamespace(
+            tool=_noop_decorator,
+            custom_route=_noop_decorator,
+            name=kwargs.get("name", args[0] if args else "anki-mcp"),
+        )
+    )
+    sys.modules.setdefault("fastmcp", fastmcp_stub)
+
+try:  # pragma: no cover - exercised only when dependency missing
+    import pydantic as _pydantic_mod  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - executed in minimal test environments
+    pydantic_stub = types.SimpleNamespace(
+        BaseModel=object,
+        Field=_field_stub,
+        constr=lambda **kwargs: str,
+        AnyHttpUrl=str,
+    )
+    sys.modules.setdefault("pydantic", pydantic_stub)
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
