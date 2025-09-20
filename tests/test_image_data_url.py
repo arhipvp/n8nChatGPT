@@ -101,6 +101,31 @@ async def test_add_from_model_sanitizes_data_url(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_process_data_urls_accepts_mixed_case_prefix(monkeypatch):
+    raw_bytes = b"case-png"
+    original_b64 = base64.b64encode(raw_bytes).decode("ascii")
+    data_url = f"DATA:image/PNG;BASE64,{original_b64}"
+
+    stored: dict[str, str] = {}
+
+    async def fake_store_media_file(filename: str, data_b64: str):
+        stored["filename"] = filename
+        stored["data"] = data_b64
+
+    monkeypatch.setattr(server, "store_media_file", fake_store_media_file)
+
+    fields = {"Back": data_url}
+    results: list[dict[str, object]] = []
+
+    await server.process_data_urls_in_fields(fields, results, note_index=0)
+
+    assert stored["data"] == base64.b64encode(raw_bytes).decode("ascii")
+    assert stored["filename"].endswith(".png")
+    assert fields["Back"].endswith(".png")
+    assert all("warn" not in detail for detail in results)
+
+
+@pytest.mark.anyio
 async def test_add_from_model_target_field_is_case_insensitive(monkeypatch):
     stored: dict[str, str] = {}
     captured: dict[str, object] = {}

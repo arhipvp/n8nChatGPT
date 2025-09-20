@@ -275,7 +275,7 @@ def ensure_img_tag(existing: str, fname: str) -> str:
     return (existing or "") + ("\n\n" if existing else "") + tag
 
 
-DATA_URL_RE = re.compile(r"^data:image/([a-zA-Z0-9+.\-]+);base64,(.+)$")
+DATA_URL_RE = re.compile(r"^data:image/([a-zA-Z0-9+.\-]+);base64,(.+)$", re.IGNORECASE)
 
 
 def ext_from_mime(mime_subtype: str) -> str:
