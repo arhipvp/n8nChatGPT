@@ -275,9 +275,9 @@ async def test_note_input_accepts_url_alias(monkeypatch):
         if action == "modelFieldNames":
             return ["Front", "Back"]
         if action == "modelTemplates":
-            return {"Card 1": {"Front": "{{Front}}", "Back": "{{Back}}"}}
+            raise AssertionError("modelTemplates should not be called for add_notes")
         if action == "modelStyling":
-            return {"css": ""}
+            raise AssertionError("modelStyling should not be called for add_notes")
         if action == "addNotes":
             captured["addNotes"] = params
             return [987]

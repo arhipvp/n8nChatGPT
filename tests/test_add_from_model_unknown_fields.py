@@ -173,9 +173,9 @@ async def test_add_notes_accepts_flat_fields(monkeypatch):
         if action == "modelFieldNames":
             return ["Front", "Back"]
         if action == "modelTemplates":
-            return {}
+            raise AssertionError("modelTemplates should not be called for add_notes")
         if action == "modelStyling":
-            return {"css": ""}
+            raise AssertionError("modelStyling should not be called for add_notes")
         if action == "addNotes":
             captured_notes = params
             return [777]
@@ -268,9 +268,9 @@ async def test_add_notes_respects_note_level_deck_and_model(monkeypatch):
             requested_models.append(model_name)
             return fields_by_model[model_name]
         if action == "modelTemplates":
-            return {}
+            raise AssertionError("modelTemplates should not be called for add_notes")
         if action == "modelStyling":
-            return {"css": ""}
+            raise AssertionError("modelStyling should not be called for add_notes")
         if action == "addNotes":
             captured_notes = params
             return [333, 444]

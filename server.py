@@ -674,6 +674,12 @@ async def get_model_fields_templates(model: str) -> Tuple[List[str], Dict[str, D
     return fields, templates, styling.get("css", "")
 
 
+async def get_model_field_names(model: str) -> List[str]:
+    """Возвращает только названия полей модели."""
+
+    return await anki_call("modelFieldNames", {"modelName": model})
+
+
 def normalize_fields_for_model(
     user_fields: Dict[str, str], model_fields: List[str]
 ) -> Tuple[Dict[str, str], int, List[str]]:
@@ -1055,7 +1061,7 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
     async def _ensure_model_context(model_name: str) -> Tuple[List[str], Dict[str, str]]:
         cached_fields = model_fields_cache.get(model_name)
         if cached_fields is None:
-            fields, _, _ = await get_model_fields_templates(model_name)
+            fields = await get_model_field_names(model_name)
             model_fields_cache[model_name] = fields
             canonical_field_map_cache[model_name] = {
                 field.lower(): field for field in fields
