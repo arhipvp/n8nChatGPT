@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 import requests
 from dotenv import load_dotenv
 
+ROOT = Path(__file__).resolve().parent
 PORT = 8000
 MCP_CMD = [
     "fastmcp",
@@ -28,7 +29,7 @@ MCP_CMD = [
 NGROK_API = "http://127.0.0.1:4040/api/tunnels"
 
 
-load_dotenv()
+load_dotenv(ROOT / ".env")
 
 procs = []  # [(name, Popen)]
 _output_state = {}
@@ -76,7 +77,7 @@ def find_ngrok_exe() -> str:
     - в PATH (shutil.which)
     - в типичных папках Windows
     """
-    here = Path.cwd()
+    here = ROOT
     for candidate in ["ngrok.exe", "ngrok"]:
         p = here / candidate
         if p.exists():
