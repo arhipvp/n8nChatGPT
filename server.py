@@ -286,9 +286,15 @@ def _ensure_search_capability(manifest: dict) -> dict:
     existing_search = capabilities.get("search")
     if isinstance(existing_search, dict):
         updated_search = dict(existing_search)
-        updated_search["enabled"] = True
     else:
-        updated_search = {"enabled": True}
+        updated_search = {}
+
+    if SEARCH_API_URL:
+        updated_search["enabled"] = True
+        updated_search.pop("reason", None)
+    else:
+        updated_search["enabled"] = False
+        updated_search["reason"] = "SEARCH_API_URL is not configured"
     capabilities["search"] = updated_search
     manifest["capabilities"] = capabilities
     return manifest

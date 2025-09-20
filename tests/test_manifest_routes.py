@@ -30,7 +30,22 @@ def test_manifest_endpoints_return_manifest_json(client, path):
         assert key in payload
 
     capabilities = payload.get("capabilities", {})
-    assert capabilities.get("search", {}).get("enabled") is True
+    search_info = capabilities.get("search", {})
+    assert search_info.get("enabled") is False
+    assert search_info.get("reason") == "SEARCH_API_URL is not configured"
+
+
+def test_manifest_search_capability_enabled_when_url(monkeypatch, client):
+    monkeypatch.setattr(server, "SEARCH_API_URL", "https://example.com/search")
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+
+    payload = response.json()
+    search_info = payload.get("capabilities", {}).get("search", {})
+    assert search_info.get("enabled") is True
+    assert "reason" not in search_info
 
 
 def test_manifest_routes_without_fastapi(monkeypatch):
@@ -79,4 +94,5 @@ def test_manifest_routes_without_fastapi(monkeypatch):
     for key in ("mcp", "server", "tools"):
         assert key in payload
     capabilities = payload.get("capabilities", {})
-    assert capabilities.get("search", {}).get("enabled") is True
+    search_info = capabilities.get("search", {})
+    assert search_info.get("enabled") is False
