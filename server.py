@@ -346,17 +346,26 @@ async def get_model_fields_templates(model: str) -> Tuple[List[str], Dict[str, D
     return fields, templates, styling.get("css", "")
 
 
-def normalize_fields_for_model(user_fields: Dict[str, str], model_fields: List[str]) -> Dict[str, str]:
+def normalize_fields_for_model(
+    user_fields: Dict[str, str], model_fields: List[str]
+) -> Tuple[Dict[str, str], int, List[str]]:
     """
     Оставляем только поля модели и заполняем недостающие пустыми строками.
     Без учёта регистра на входе.
     """
-    normalized = {}
+    normalized: Dict[str, str] = {}
     lower_map = {k.lower(): k for k in user_fields.keys()}
+    matched_keys: List[str] = []
     for mf in model_fields:
         key = lower_map.get(mf.lower())
-        normalized[mf] = user_fields.get(key, "") if key else ""
-    return normalized
+        if key:
+            normalized[mf] = user_fields.get(key, "")
+            matched_keys.append(key)
+        else:
+            normalized[mf] = ""
+
+    unknown_fields = [k for k in user_fields.keys() if k not in matched_keys]
+    return normalized, len(matched_keys), sorted(unknown_fields)
 
 
 # ======================== ИНСТРУМЕНТЫ ========================
@@ -392,7 +401,19 @@ async def add_from_model(deck: str = DEFAULT_DECK, model: str = DEFAULT_MODEL, i
 
     for i, note in enumerate(items):
         # 1) нормализуем поля под модель
-        fields = normalize_fields_for_model(note.fields, model_fields)
+        fields, matched_count, unknown_fields = normalize_fields_for_model(
+            note.fields, model_fields
+        )
+
+        if matched_count == 0 or not fields.get(model_fields[0]):
+            expected = ", ".join(repr(name) for name in model_fields)
+            provided = ", ".join(repr(name) for name in unknown_fields)
+            raise ValueError(
+                "Unknown note fields: "
+                f"[{provided}]"  # квадратные скобки для единообразия с ожиданиями теста
+                f". Expected fields: [{expected}]. "
+                f"Ensure required field '{model_fields[0]}' is provided."
+            )
 
         # 2) data URL внутри полей (например, поле Image)
         await process_data_urls_in_fields(fields, results, i)
