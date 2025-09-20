@@ -216,6 +216,31 @@ def ext_from_mime(mime_subtype: str) -> str:
     return "png"
 
 
+def sanitize_image_payload(payload: str) -> Tuple[str, Optional[str]]:
+    """Нормализует строку Base64 или data URL и подсказывает расширение."""
+
+    trimmed = (payload or "").strip()
+    if not trimmed:
+        raise ValueError("image payload is empty")
+
+    m = DATA_URL_RE.match(trimmed)
+    if m:
+        mime_subtype, b64_payload = m.group(1), m.group(2).strip()
+        try:
+            raw = base64.b64decode(b64_payload, validate=True)
+        except Exception as exc:  # pragma: no cover - error path
+            raise ValueError(f"invalid base64 image data: {exc}") from exc
+        clean_b64 = base64.b64encode(raw).decode("ascii")
+        return clean_b64, ext_from_mime(mime_subtype)
+
+    try:
+        raw = base64.b64decode(trimmed, validate=True)
+    except Exception as exc:  # pragma: no cover - error path
+        raise ValueError(f"invalid base64 image data: {exc}") from exc
+    clean_b64 = base64.b64encode(raw).decode("ascii")
+    return clean_b64, None
+
+
 async def process_data_urls_in_fields(fields: Dict[str, str], results: List[dict], note_index: int):
     """
     Находит в строковых полях data URL вида data:image/...;base64,AAA...
@@ -224,19 +249,21 @@ async def process_data_urls_in_fields(fields: Dict[str, str], results: List[dict
     for key, value in list(fields.items()):
         if not isinstance(value, str):
             continue
-        m = DATA_URL_RE.match(value.strip())
+        value = value.strip()
+        m = DATA_URL_RE.match(value)
         if not m:
             continue
 
-        mime_subtype, b64 = m.group(1), m.group(2)
         try:
-            # нормализуем, валидируем base64
-            raw = base64.b64decode(b64, validate=True)
+            clean_b64, ext_hint = sanitize_image_payload(value)
+            raw = base64.b64decode(clean_b64, validate=True)
             # имя по хэшу содержимого
             digest = hashlib.sha1(raw).hexdigest()  # компактно и детерминировано
-            fname = f"img_{digest}.{ext_from_mime(mime_subtype)}"
+            mime_subtype = m.group(1)
+            extension = ext_hint or ext_from_mime(mime_subtype)
+            fname = f"img_{digest}.{extension}"
             # сохраняем
-            await store_media_file(fname, base64.b64encode(raw).decode("ascii"))
+            await store_media_file(fname, clean_b64)
             # подменяем поле на имя файла (шаблон {{Image}} сам подставит <img src="{{Image}}">)
             fields[key] = fname
             results.append({"index": note_index, "info": f"data_url_saved:{key}->{fname}"})
@@ -304,9 +331,13 @@ async def add_from_model(deck: str, model: str, items: List[NoteInput]) -> AddNo
 
         # 3) поддержка images[] (старый механизм вставки <img>)
         for img in note.images:
-            fname = img.filename or f"{uuid.uuid4().hex}.jpg"
+            ext_hint: Optional[str] = None
             if img.image_base64:
-                data_b64 = img.image_base64
+                try:
+                    data_b64, ext_hint = sanitize_image_payload(img.image_base64)
+                except ValueError as e:
+                    results.append({"index": i, "warn": f"invalid_image_base64: {e}"})
+                    continue
             elif img.image_url:
                 try:
                     data_b64 = await fetch_image_as_base64(str(img.image_url), img.max_side)
@@ -317,6 +348,7 @@ async def add_from_model(deck: str, model: str, items: List[NoteInput]) -> AddNo
                 results.append({"index": i, "warn": "no_image_provided"})
                 continue
 
+            fname = img.filename or f"{uuid.uuid4().hex}.{ext_hint or 'jpg'}"
             try:
                 await store_media_file(fname, data_b64)
                 prev = fields.get(img.target_field, "")
@@ -372,9 +404,13 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
 
         # images[] как раньше
         for img in note.images:
-            fname = img.filename or f"{uuid.uuid4().hex}.jpg"
+            ext_hint: Optional[str] = None
             if img.image_base64:
-                data_b64 = img.image_base64
+                try:
+                    data_b64, ext_hint = sanitize_image_payload(img.image_base64)
+                except ValueError as e:
+                    results.append({"index": i, "warn": f"invalid_image_base64: {e}"})
+                    continue
             elif img.image_url:
                 try:
                     data_b64 = await fetch_image_as_base64(str(img.image_url), img.max_side)
@@ -385,6 +421,7 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
                 results.append({"index": i, "warn": "no_image_provided"})
                 continue
 
+            fname = img.filename or f"{uuid.uuid4().hex}.{ext_hint or 'jpg'}"
             try:
                 await store_media_file(fname, data_b64)
                 prev = fields.get(img.target_field, "")

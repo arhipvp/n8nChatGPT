@@ -5,18 +5,32 @@ from pathlib import Path
 import pytest
 
 
-class _FakeFastMCP:
-    def __init__(self, *args, **kwargs):
-        pass
+try:  # pragma: no cover - exercised only when dependency missing
+    import fastmcp as _fastmcp_mod  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - executed in minimal test environments
+    class _FakeFastMCP:
+        def __init__(self, *args, **kwargs):
+            pass
 
-    def tool(self, *args, **kwargs):
-        def decorator(func):
-            return func
+        def tool(self, *args, **kwargs):
+            def decorator(func):
+                return func
 
-        return decorator
+            return decorator
 
+        def custom_route(self, *args, **kwargs):
+            return self.tool(*args, **kwargs)
 
-sys.modules.setdefault("fastmcp", types.ModuleType("fastmcp")).FastMCP = _FakeFastMCP
+        def http_app(self):  # minimal shim for tests needing HTTP app
+            import types as _types
+
+            async def _noop_app(scope, receive, send):  # pragma: no cover
+                raise RuntimeError("ASGI app not available in tests")
+
+            return _types.SimpleNamespace(__call__=_noop_app)
+
+    sys.modules.setdefault("fastmcp", types.ModuleType("fastmcp")).FastMCP = _FakeFastMCP
+
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -25,7 +39,12 @@ if str(ROOT) not in sys.path:
 from server import AddNotesArgs, NoteInput, add_from_model, add_notes
 
 
-@pytest.mark.asyncio
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
+@pytest.mark.anyio
 async def test_add_from_model_includes_dedup_key(monkeypatch):
     async def fake_anki_call(action, params):
         if action == "createDeck":
@@ -47,7 +66,7 @@ async def test_add_from_model_includes_dedup_key(monkeypatch):
         NoteInput(fields={"Front": "Q2", "Back": "A2"}, dedup_key="second"),
     ]
 
-    result = await add_from_model(deck="Deck", model="Basic", items=items)
+    result = await add_from_model.fn(deck="Deck", model="Basic", items=items)
 
     assert result.added == 1
     assert result.skipped == 1
@@ -57,7 +76,7 @@ async def test_add_from_model_includes_dedup_key(monkeypatch):
     assert result.details[1]["dedup_key"] == "second"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_add_notes_includes_dedup_key(monkeypatch):
     async def fake_anki_call(action, params):
         if action == "createDeck":
@@ -77,7 +96,7 @@ async def test_add_notes_includes_dedup_key(monkeypatch):
         ],
     )
 
-    result = await add_notes(args)
+    result = await add_notes.fn(args)
 
     assert result.added == 1
     assert result.skipped == 1
