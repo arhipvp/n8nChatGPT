@@ -336,14 +336,18 @@ async def add_from_model(deck: str, model: str, items: List[NoteInput]) -> AddNo
     try:
         res = await anki_call("addNotes", {"notes": notes_payload})
         for idx, note_id in enumerate(res):
+            dedup_key = items[idx].dedup_key
             if note_id is None:
                 skipped += 1
-                results.append({"index": idx, "status": "duplicate"})
+                detail = {"index": idx, "status": "duplicate"}
+                if dedup_key is not None:
+                    detail["dedup_key"] = dedup_key
+                results.append(detail)
             else:
                 added += 1
                 details = {"index": idx, "status": "ok", "noteId": note_id}
-                if items[idx].dedup_key:
-                    details["dedup_key"] = items[idx].dedup_key
+                if dedup_key is not None:
+                    details["dedup_key"] = dedup_key
                 results.append(details)
     except Exception as e:
         raise RuntimeError(f"addNotes_failed: {e}") from e
@@ -399,12 +403,19 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
     try:
         res = await anki_call("addNotes", {"notes": notes_payload})
         for idx, note_id in enumerate(res):
+            dedup_key = args.notes[idx].dedup_key
             if note_id is None:
                 skipped += 1
-                results.append({"index": idx, "status": "duplicate"})
+                detail = {"index": idx, "status": "duplicate"}
+                if dedup_key is not None:
+                    detail["dedup_key"] = dedup_key
+                results.append(detail)
             else:
                 added += 1
-                results.append({"index": idx, "status": "ok", "noteId": note_id})
+                detail = {"index": idx, "status": "ok", "noteId": note_id}
+                if dedup_key is not None:
+                    detail["dedup_key"] = dedup_key
+                results.append(detail)
     except Exception as e:
         raise RuntimeError(f"addNotes_failed: {e}") from e
 
