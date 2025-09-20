@@ -76,7 +76,7 @@ except ImportError:  # pragma: no cover - поддержка Pydantic v1 без 
 
     ConfigDict = None  # type: ignore
 
-from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar
+from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
 
 try:  # pragma: no cover - модельный валидатор есть только в Pydantic v2
@@ -596,7 +596,11 @@ async def model_info(model: str = DEFAULT_MODEL) -> ModelInfo:
 
 
 @app.tool(name="anki.add_from_model")
-async def add_from_model(deck: str = DEFAULT_DECK, model: str = DEFAULT_MODEL, items: Optional[List[NoteInput]] = None) -> AddNotesResult:
+async def add_from_model(
+    deck: str = DEFAULT_DECK,
+    model: str = DEFAULT_MODEL,
+    items: Optional[List[Union[NoteInput, Dict[str, str]]]] = None,
+) -> AddNotesResult:
     """
     Добавляет заметки, предварительно запрашивая действующие поля модели.
     Дополнительно:
@@ -612,11 +616,48 @@ async def add_from_model(deck: str = DEFAULT_DECK, model: str = DEFAULT_MODEL, i
     model_fields, _, _ = await get_model_fields_templates(model)
     field_aliases = {field.lower(): field for field in model_fields}
 
+    normalized_items: List[NoteInput] = []
+    for index, raw_item in enumerate(items):
+        if isinstance(raw_item, NoteInput):
+            note = raw_item
+        elif isinstance(raw_item, dict):
+            payload: Dict[str, Any]
+            if "fields" in raw_item:
+                payload = raw_item  # type: ignore[assignment]
+            else:
+                candidate_fields = {
+                    key: raw_item[key]
+                    for key in raw_item.keys()
+                    if key not in _NOTE_RESERVED_TOP_LEVEL_KEYS
+                }
+                if not candidate_fields:
+                    raise ValueError(
+                        "Каждая заметка должна содержать хотя бы одно поле, например {'Front': 'Question'}."
+                    )
+
+                payload = {
+                    "fields": candidate_fields,
+                }
+                for key in _NOTE_RESERVED_TOP_LEVEL_KEYS:
+                    if key in raw_item:
+                        payload[key] = raw_item[key]
+
+            try:
+                note = _model_validate(NoteInput, payload)
+            except Exception as exc:  # pragma: no cover - защитный хэндлинг
+                raise ValueError(f"Invalid note at index {index}: {exc}") from exc
+        else:
+            raise TypeError(
+                f"items[{index}] must be NoteInput or dict, got {type(raw_item).__name__}"
+            )
+
+        normalized_items.append(note)
+
     notes_payload: List[dict] = []
     results: List[dict] = []
     added = skipped = 0
 
-    for i, note in enumerate(items):
+    for i, note in enumerate(normalized_items):
         # 1) нормализуем поля под модель с валидацией
         fields = normalize_and_validate_note_fields(note.fields, model_fields)
 
