@@ -8,6 +8,7 @@
 - `fastmcp`
 - `httpx`
 - `Pillow`
+- `python-dotenv`
 - Anki с установленным плагином [AnkiConnect](https://foosoft.net/projects/anki-connect/) и запущенным Anki-клиентом
 
 ## Требования к ngrok
@@ -18,9 +19,10 @@
 
 ## Пошаговый сценарий
 1. **Подготовка окружения**
-   - Установите зависимости: `pip install fastmcp httpx Pillow`.
+   - Установите зависимости: `pip install fastmcp httpx Pillow python-dotenv`.
    - Убедитесь, что Anki запущен, а расширение AnkiConnect активно.
    - Скопируйте `.env`-шаблон: `cp env.example .env` и впишите значение `NGROK_AUTHTOKEN=<ваш_токен>`.
+     `.env` подхватывается автоматически через `python-dotenv`, поэтому дополнительных команд не требуется.
    - Поместите `ngrok` рядом с проектом или добавьте в `PATH`.
 2. **Запуск**
    - Выполните команду `python main.py`.
