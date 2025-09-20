@@ -306,6 +306,35 @@ class AddNotesResult(BaseModel):
     details: List[dict] = Field(default_factory=list)
 
 
+class NoteInfoArgs(BaseModel):
+    note_ids: List[int] = Field(min_length=1, alias="noteIds")
+
+    if ConfigDict is not None:  # pragma: no branch
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover
+        class Config:
+            allow_population_by_field_name = True
+
+
+class NoteInfo(BaseModel):
+    note_id: int = Field(alias="noteId")
+    model_name: Optional[str] = Field(default=None, alias="modelName")
+    deck_name: Optional[str] = Field(default=None, alias="deckName")
+    tags: List[str] = Field(default_factory=list)
+    fields: Dict[str, str] = Field(default_factory=dict)
+    cards: List[int] = Field(default_factory=list)
+
+    if ConfigDict is not None:  # pragma: no branch
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover
+        class Config:
+            allow_population_by_field_name = True
+
+
+class NoteInfoResponse(BaseModel):
+    notes: List[Optional[NoteInfo]] = Field(default_factory=list)
+
+
 class ModelInfo(BaseModel):
     model: str
     fields: List[str]
@@ -602,6 +631,117 @@ def normalize_and_validate_note_fields(
     return fields
 
 
+def _normalize_note_fields_payload(raw_fields: Any) -> Dict[str, str]:
+    if not isinstance(raw_fields, dict):
+        return {}
+
+    normalized: Dict[str, str] = {}
+    for key, value in raw_fields.items():
+        if isinstance(value, dict) and "value" in value:
+            candidate = value.get("value")
+        else:
+            candidate = value
+
+        if candidate is None:
+            normalized_value = ""
+        elif isinstance(candidate, str):
+            normalized_value = candidate
+        else:
+            normalized_value = str(candidate)
+
+        normalized[str(key)] = normalized_value
+
+    return normalized
+
+
+def _normalize_note_tags(raw_tags: Any) -> List[str]:
+    if not isinstance(raw_tags, list):
+        return []
+
+    tags: List[str] = []
+    for tag in raw_tags:
+        if tag is None:
+            continue
+        if isinstance(tag, str):
+            trimmed = tag.strip()
+            if trimmed:
+                tags.append(trimmed)
+        else:
+            tags.append(str(tag))
+    return tags
+
+
+def _normalize_note_cards(raw_cards: Any) -> List[int]:
+    if not isinstance(raw_cards, list):
+        return []
+
+    cards: List[int] = []
+    for card in raw_cards:
+        if card is None:
+            continue
+        if isinstance(card, int):
+            cards.append(card)
+            continue
+        if isinstance(card, float):
+            cards.append(int(card))
+            continue
+        if isinstance(card, str):
+            stripped = card.strip()
+            if not stripped:
+                continue
+            try:
+                cards.append(int(stripped))
+            except ValueError:
+                continue
+    return cards
+
+
+def _normalize_note_entry(raw_note: Any, index: int) -> Optional[NoteInfo]:
+    if raw_note is None:
+        return None
+    if not isinstance(raw_note, dict):
+        raise ValueError(f"notesInfo[{index}] must be an object or null")
+
+    note_id_raw = raw_note.get("noteId")
+    if isinstance(note_id_raw, int):
+        note_id = note_id_raw
+    elif isinstance(note_id_raw, str):
+        stripped = note_id_raw.strip()
+        if not stripped:
+            raise ValueError(f"notesInfo[{index}].noteId is empty")
+        try:
+            note_id = int(stripped)
+        except ValueError as exc:
+            raise ValueError(
+                f"notesInfo[{index}].noteId must be an integer, got {note_id_raw!r}"
+            ) from exc
+    else:
+        raise ValueError(
+            f"notesInfo[{index}].noteId must be an integer, got {note_id_raw!r}"
+        )
+
+    payload = {
+        "noteId": note_id,
+        "modelName": raw_note.get("modelName"),
+        "deckName": raw_note.get("deckName"),
+        "tags": _normalize_note_tags(raw_note.get("tags")),
+        "fields": _normalize_note_fields_payload(raw_note.get("fields")),
+        "cards": _normalize_note_cards(raw_note.get("cards")),
+    }
+
+    return _model_validate(NoteInfo, payload)
+
+
+def _normalize_notes_info(raw_notes: Any) -> List[Optional[NoteInfo]]:
+    if not isinstance(raw_notes, list):
+        raise ValueError("notesInfo response must be a list")
+
+    normalized: List[Optional[NoteInfo]] = []
+    for index, raw_note in enumerate(raw_notes):
+        normalized.append(_normalize_note_entry(raw_note, index))
+    return normalized
+
+
 # ======================== ДЕЙСТВИЯ ========================
 
 
@@ -633,6 +773,14 @@ async def search(request: SearchRequest) -> SearchResponse:
 
 
 # ======================== ИНСТРУМЕНТЫ ========================
+
+
+@app.tool(name="anki.note_info")
+async def note_info(args: NoteInfoArgs) -> NoteInfoResponse:
+    raw_notes = await anki_call("notesInfo", {"notes": args.note_ids})
+    normalized = _normalize_notes_info(raw_notes)
+    return NoteInfoResponse(notes=normalized)
+
 
 @app.tool(name="anki.model_info")
 async def model_info(model: str = DEFAULT_MODEL) -> ModelInfo:
