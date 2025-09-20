@@ -215,6 +215,43 @@ def shutdown():
     print("[stop] Готово.")
 
 
+def monitor_processes(mcp, ng, reused_ngrok):
+    """Следим за состоянием процессов и возвращаем код выхода и причину остановки."""
+    exit_code = 0
+    stop_reason = "Остановка по запросу пользователя (Ctrl+C)."
+    try:
+        while True:
+            time.sleep(1)
+            if mcp.poll() is not None:
+                print("[error] MCP-сервер завершился. Останавливаемся.")
+                exit_code = 1
+                stop_reason = (
+                    "MCP-сервер завершился. Проверь логи выше, перезапусти сервер и повтори."
+                )
+                break
+            if ng and ng.poll() is not None and not ngrok_api_alive():
+                print("[error] ngrok завершился. Останавливаемся.")
+                exit_code = 1
+                stop_reason = (
+                    "ngrok завершился. Переустанови туннель и повтори запуск."
+                )
+                break
+            if reused_ngrok and not ngrok_api_alive():
+                print(
+                    "[warning] Ранее запущенный ngrok-туннель больше недоступен."
+                    " Останавливаем сервер."
+                )
+                exit_code = 1
+                stop_reason = (
+                    "Переиспользованный ngrok-туннель остановился."
+                    " Запусти ngrok вручную и повтори попытку."
+                )
+                break
+    except KeyboardInterrupt:
+        stop_reason = "Остановка по запросу пользователя (Ctrl+C)."
+    return exit_code, stop_reason
+
+
 if __name__ == "__main__":
     # 1) MCP-сервер
     mcp = start(MCP_CMD, "mcp", cwd=ROOT)
@@ -262,6 +299,8 @@ if __name__ == "__main__":
             shutdown()
             sys.exit(1)
 
+    reused_ngrok = already_running and ng is None
+
     # 3) Публичный URL
     url = get_ngrok_url()
     if not url:
@@ -277,21 +316,7 @@ if __name__ == "__main__":
     print(f"• Публично:   {public_mcp}")
     print("\nОставь окно открытым. Нажми Ctrl+C, чтобы остановить.")
 
-    # 4) Основной цикл
-    exit_code = 0
-    try:
-        while True:
-            time.sleep(1)
-            if mcp.poll() is not None:
-                print("[error] MCP-сервер завершился. Останавливаемся.")
-                exit_code = 1
-                break
-            if ng and ng.poll() is not None and not ngrok_api_alive():
-                print("[error] ngrok завершился. Останавливаемся.")
-                exit_code = 1
-                break
-    except KeyboardInterrupt:
-        pass
-    finally:
-        shutdown()
+    exit_code, stop_reason = monitor_processes(mcp, ng, reused_ngrok)
+    print(f"\n[stop] Причина остановки: {stop_reason}")
+    shutdown()
     sys.exit(exit_code)

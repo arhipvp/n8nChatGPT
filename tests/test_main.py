@@ -19,6 +19,37 @@ if "dotenv" not in sys.modules:
 import main
 
 
+class _DummyProcess:
+    def __init__(self, poll_values):
+        self._values = iter(poll_values)
+
+    def poll(self):
+        try:
+            return next(self._values)
+        except StopIteration:
+            return None
+
+
+def test_monitor_processes_handles_reused_ngrok_drop(monkeypatch):
+    statuses = iter([False])
+
+    def fake_ngrok_api_alive():
+        try:
+            return next(statuses)
+        except StopIteration:
+            return False
+
+    monkeypatch.setattr(main, "ngrok_api_alive", fake_ngrok_api_alive)
+    monkeypatch.setattr(main.time, "sleep", lambda *_args, **_kwargs: None)
+
+    mcp = _DummyProcess([None])
+
+    exit_code, reason = main.monitor_processes(mcp, None, True)
+
+    assert exit_code == 1
+    assert "Переиспользованный ngrok-туннель остановился" in reason
+
+
 def test_mcp_process_uses_project_root(monkeypatch, tmp_path):
     # Меняем рабочий каталог, чтобы эмулировать запуск из другого места
     monkeypatch.chdir(tmp_path)
