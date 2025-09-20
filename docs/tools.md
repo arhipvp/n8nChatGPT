@@ -6,11 +6,11 @@
 ## Переменные окружения
 
 - `ANKI_DEFAULT_DECK` — имя колоды, которое будет использоваться по умолчанию, если клиент не передал параметр `deck`.
-- `ANKI_DEFAULT_MODEL` — имя модели, используемой по умолчанию при отсутствии параметра `model`. По умолчанию это пользовательская модель `Sentence (DE)` c полями `Sentence`, `Translation`, `Hint`, `Notes` (в этом порядке).
+- `ANKI_DEFAULT_MODEL` — имя модели, используемой по умолчанию при отсутствии параметра `model`. По умолчанию это пользовательская модель `Поля для ChatGPT` c полями `Prompt`, `Response`, `Context`, `Sources` (в этом порядке).
 - `SEARCH_API_URL` — базовый URL внешнего поиска (HTTP endpoint, webhook n8n и т.п.), который будет вызываться действием `search`.
 - `SEARCH_API_KEY` — необязательный ключ/токен для авторизации во внешнем поиске. Если не задан, заголовок `Authorization` не добавляется.
 
-Переменные для Anki необязательные: пустое значение приводит к использованию стандартных `"Default"` и `"Sentence (DE)"` соответственно.
+Переменные для Anki необязательные: пустое значение приводит к использованию стандартных `"Default"` и `"Поля для ChatGPT"` соответственно.
 Переменные поиска также можно оставить пустыми — тогда действие `search` будет недоступно и сервер сообщит об ошибке при попытке вызвать его без настроек.
 
 ## Общие структуры данных
@@ -48,7 +48,7 @@
 - **Используется в:** `anki.add_notes`.
 - **Поля:**
   - `deck: str` — имя колоды. Если параметр не передан, используется значение из `ANKI_DEFAULT_DECK` (по умолчанию `"Default"`).
-  - `model: str` — имя модели. При отсутствии значения используется `ANKI_DEFAULT_MODEL` (по умолчанию `"Sentence (DE)"`).
+  - `model: str` — имя модели. При отсутствии значения используется `ANKI_DEFAULT_MODEL` (по умолчанию `"Поля для ChatGPT"`).
   - `notes: List[NoteInput]` — список заметок (обязательный, минимум один элемент).
 
 ### `AddNotesResult`
@@ -94,39 +94,43 @@
 ### `anki.model_info`
 - **Назначение:** получить актуальные поля, шаблоны (Front/Back) и CSS выбранной модели Anki.
 - **Параметры:**
-  - `model: str` — имя модели. Если параметр опущен, используется `ANKI_DEFAULT_MODEL` (`"Sentence (DE)"`, если переменная не задана или пуста).
+  - `model: str` — имя модели. Если параметр опущен, используется `ANKI_DEFAULT_MODEL` (`"Поля для ChatGPT"`, если переменная не задана или пуста).
 - **Ответ:** объект `ModelInfo` (см. выше).
 - **Пример запроса:**
 ```json
 {
   "name": "anki.model_info",
   "arguments": {
-    "model": "Sentence (DE)"
+    "model": "Поля для ChatGPT"
   }
 }
 ```
 - **Пример ответа:**
 ```json
 {
-  "model": "Sentence (DE)",
-  "fields": ["Sentence", "Translation", "Hint", "Notes"],
+  "model": "Поля для ChatGPT",
+  "fields": ["Prompt", "Response", "Context", "Sources"],
   "templates": {
     "Card 1": {
+
       "Front": "<div class=\"sentence\">{{Sentence}}</div>\n<div class=\"hint\">{{Hint}}</div>\n{{tts de_DE voices=AwesomeTTS:Sentence}}",
       "Back": "{{FrontSide}}\n<hr id=\"answer\">\n<div class=\"translation\">{{Translation}}</div>\n<div class=\"notes\">{{Notes}}</div>"
+
     }
   },
-  "styling": ".card {\n  font-family: \"Fira Sans\", sans-serif;\n  font-size: 26px;\n  text-align: left;\n  line-height: 1.45;\n}\n.sentence {\n  font-weight: 600;\n  margin-bottom: 12px;\n}\n.hint {\n  color: #4a5568;\n  font-style: italic;\n  margin-bottom: 16px;\n}\n.translation {\n  color: #2d3748;\n  font-size: 24px;\n  margin-bottom: 12px;\n}\n.notes {\n  color: #2d3748;\n  font-size: 20px;\n}"
+  "styling": ".card {\n  font-family: \"Inter\", \"Segoe UI\", sans-serif;\n  font-size: 22px;\n  text-align: left;\n  line-height: 1.5;\n}\n.prompt {\n  font-weight: 600;\n  font-size: 24px;\n  margin-bottom: 12px;\n}\n.context {\n  color: #4a5568;\n  font-style: italic;\n  margin-bottom: 16px;\n}\n.response {\n  color: #1a202c;\n  font-size: 22px;\n  margin-bottom: 12px;\n}\n.sources {\n  color: #2d3748;\n  font-size: 18px;\n  white-space: pre-wrap;\n}"
 }
 ```
 
+
 > **Важно.** Клиент должен передавать значения полей строго в порядке `Sentence`, `Translation`, `Hint`, `Notes`. Шаблон фронта включает вызов `{{tts de_DE voices=AwesomeTTS:Sentence}}`, поэтому в Anki должен быть настроен профиль AwesomeTTS `Sentence`, который озвучивает поле `Sentence`.
+
 
 ### `anki.add_from_model`
 - **Назначение:** добавить заметки в указанную колоду с учётом текущих полей и шаблонов модели. Инструмент сам загружает структуру модели, нормализует `fields` и обрабатывает вложенные изображения.
 - **Параметры:**
   - `deck: str` — целевая колода. Если параметр опущен, используется `ANKI_DEFAULT_DECK` (`"Default"`, если переменная не задана или пуста).
-  - `model: str` — модель карточки. По умолчанию берётся `ANKI_DEFAULT_MODEL` (`"Sentence (DE)"`, если переменная не задана или пуста).
+  - `model: str` — модель карточки. По умолчанию берётся `ANKI_DEFAULT_MODEL` (`"Поля для ChatGPT"`, если переменная не задана или пуста).
   - `items: List[NoteInput | dict]` — список заметок (обязателен). Для каждого элемента можно передавать:
     - полноценный объект `NoteInput` с ключами `fields`/`tags`/`images`/`dedup_key`;
     - или плоский словарь, где верхнеуровневые ключи соответствуют полям модели, а служебные атрибуты (`tags`, `images`, `dedup_key`) указываются рядом.
@@ -142,22 +146,22 @@
   "name": "anki.add_from_model",
   "arguments": {
     "deck": "Default",
-    "model": "Sentence (DE)",
+    "model": "Поля для ChatGPT",
     "items": [
       {
-        "Sentence": "Die Hauptstadt von Frankreich ist?",
-        "Translation": "Столица Франции — Париж.",
-        "Hint": "Wortstellung во вопросах с ist",
-        "Notes": "Источник: https://de.wikipedia.org/wiki/Paris",
+        "Prompt": "Расскажи коротко про столицу Франции",
+        "Response": "Столица Франции — Париж.",
+        "Context": "Основные факты",
+        "Sources": "https://ru.wikipedia.org/wiki/Париж",
         "tags": ["geo", "de"],
         "dedup_key": "geo-paris"
       },
       {
         "fields": {
-          "Sentence": "Wie heißt die Hauptstadt von Deutschland?",
-          "Translation": "Столица Германии — Берлин.",
-          "Hint": "Fragewort + глагол на втором месте",
-          "Notes": "Источник: https://de.wikipedia.org/wiki/Berlin"
+          "Prompt": "Что нужно знать о столице Германии?",
+          "Response": "Столица Германии — Берлин.",
+          "Context": "Краткая справка",
+          "Sources": "https://ru.wikipedia.org/wiki/Берлин"
         },
         "tags": ["geo", "de"]
       }
@@ -181,7 +185,9 @@
 }
 ```
 
+
 > **Напоминание.** Даже если поля передаются объектом `fields`, сервер сопоставляет их с порядком `Sentence → Translation → Hint → Notes`, чтобы шаблон с TTS `{{tts de_DE voices=AwesomeTTS:Sentence}}` оставался валидным и продолжал озвучивать поле `Sentence` через профиль AwesomeTTS `Sentence`.
+
 
 ### `anki.note_info`
 - **Назначение:** получить подробные сведения о заметках по их идентификаторам.
@@ -210,14 +216,14 @@
   "notes": [
     {
       "noteId": 1700000000000,
-      "modelName": "Sentence (DE)",
+      "modelName": "Поля для ChatGPT",
       "deckName": "Default",
       "tags": ["geo"],
       "fields": {
-        "Sentence": "Die Hauptstadt von Frankreich ist?",
-        "Translation": "Столица Франции — Париж.",
-        "Hint": "Wortstellung во вопросах с ist",
-        "Notes": "Источник: https://de.wikipedia.org/wiki/Paris"
+        "Prompt": "Расскажи коротко про столицу Франции",
+        "Response": "Столица Франции — Париж.",
+        "Context": "Основные факты",
+        "Sources": "https://ru.wikipedia.org/wiki/Париж"
       },
       "cards": [1700000000100]
     },
@@ -230,7 +236,7 @@
 - **Назначение:** низкоуровневое добавление заметок без автоматической подстройки под структуру модели. Используется для случаев, когда клиент уже знает точное соответствие полей.
 - **Параметры:**
   - `deck: str` — целевая колода. При отсутствии параметра используется `ANKI_DEFAULT_DECK` (`"Default"`).
-  - `model: str` — модель карточки. Если аргумент опущен, применяется `ANKI_DEFAULT_MODEL` (`"Sentence (DE)"`).
+  - `model: str` — модель карточки. Если аргумент опущен, применяется `ANKI_DEFAULT_MODEL` (`"Поля для ChatGPT"`).
   - `notes: List[NoteInput]` — список заметок (обязателен, минимум один).
 - **Ответ:** объект `AddNotesResult`.
 - **Особенности:**
@@ -244,14 +250,14 @@
   "name": "anki.add_notes",
   "arguments": {
     "deck": "Default",
-    "model": "Sentence (DE)",
+    "model": "Поля для ChatGPT",
     "notes": [
       {
         "fields": {
-          "Sentence": "Das ist nur ein Test.",
-          "Translation": "Это просто тест.",
-          "Hint": "Нейтральное предложение",
-          "Notes": "Создано вручную через add_notes"
+          "Prompt": "Это тестовая карточка",
+          "Response": "Ответ добавлен через add_notes.",
+          "Context": "Проверка низкоуровневого метода",
+          "Sources": ""
         },
         "tags": [],
         "images": []
