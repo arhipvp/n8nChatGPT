@@ -122,12 +122,14 @@ async def test_add_from_model_accepts_plain_dict(monkeypatch):
     monkeypatch.setattr("server.anki_call", fake_anki_call)
 
     result = await add_from_model.fn(
-        deck="Deck", model="Basic", items=[{"Front": "Q", "Back": "A"}]
+        deck="Deck",
+        model="Basic",
+        items=[{"Front": "Q", "Back": "A", "tags": "auto"}],
     )
 
     assert result.added == 1
     assert captured_notes["notes"][0]["fields"] == {"Front": "Q", "Back": "A"}
-    assert captured_notes["notes"][0]["tags"] == []
+    assert captured_notes["notes"][0]["tags"] == ["auto"]
 
 
 @pytest.mark.anyio
