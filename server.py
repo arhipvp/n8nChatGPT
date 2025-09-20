@@ -16,16 +16,57 @@ except Exception:  # pragma: no cover - fallback when fastapi is unavailable
         class Request:  # minimal placeholder for degraded environments
             pass
 
-    class JSONResponse(dict):
-        def __init__(self, content, media_type: str = "application/json", status_code: int = 200, headers: Optional[dict] = None):
-            super().__init__()
-            self.content = content
-            self.media_type = media_type
-            self.status_code = status_code
-            self.headers = headers or {}
+    try:  # pragma: no cover - prefer Starlette's JSONResponse when available
+        from starlette.responses import JSONResponse  # type: ignore
+    except Exception:  # pragma: no cover - last-resort JSON response implementation
+        class JSONResponse:
+            def __init__(
+                self,
+                content,
+                media_type: str = "application/json",
+                status_code: int = 200,
+                headers: Optional[dict] = None,
+            ) -> None:
+                self.content = content
+                self.media_type = media_type
+                self.status_code = status_code
+                self._body = self._render_body(content)
+                base_headers = headers.copy() if headers else {}
+                self.headers = {k.lower(): str(v) for k, v in base_headers.items()}
+                self.headers.setdefault("content-type", self.media_type)
+                self.headers.setdefault("content-length", str(len(self._body)))
 
-        def __call__(self):  # pragma: no cover - used only in degraded environments
-            return self.content
+            @staticmethod
+            def _render_body(content) -> bytes:
+                if isinstance(content, (bytes, bytearray)):
+                    return bytes(content)
+                if isinstance(content, str):
+                    return content.encode("utf-8")
+                return json.dumps(content).encode("utf-8")
+
+            async def __call__(self, scope, receive, send):  # pragma: no cover - used only in degraded environments
+                if scope.get("type") != "http":
+                    raise RuntimeError("JSONResponse only supports HTTP requests")
+
+                headers = [
+                    (name.encode("latin-1"), value.encode("latin-1"))
+                    for name, value in self.headers.items()
+                ]
+
+                await send(
+                    {
+                        "type": "http.response.start",
+                        "status": self.status_code,
+                        "headers": headers,
+                    }
+                )
+                await send(
+                    {
+                        "type": "http.response.body",
+                        "body": self._body,
+                        "more_body": False,
+                    }
+                )
 from pydantic import BaseModel, Field, constr, AnyHttpUrl
 from typing import Dict, List, Optional, Tuple
 
