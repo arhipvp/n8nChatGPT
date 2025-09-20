@@ -164,3 +164,16 @@ def test_fetch_image_follows_redirect_and_returns_final_content(monkeypatch):
 
     assert redirect_client.requested_urls == [initial_url, redirect_url]
     assert base64.b64decode(result) == final_payload
+
+
+def test_fetch_image_with_zero_max_side_raises_value_error(monkeypatch):
+    monkeypatch.setattr(
+        server.httpx,
+        "AsyncClient",
+        lambda *args, **kwargs: pytest.fail("HTTP client should not be used when max_side is invalid"),
+    )
+
+    with pytest.raises(ValueError, match="max_side"):
+        asyncio.run(
+            server.fetch_image_as_base64("http://example.com/image.jpg", max_side=0)
+        )
