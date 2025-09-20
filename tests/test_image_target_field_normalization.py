@@ -137,7 +137,7 @@ async def test_add_notes_image_target_field_normalized(monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_add_notes_unknown_target_field_warn(monkeypatch):
+async def test_add_notes_unknown_target_field_raises(monkeypatch):
     captured: dict[str, object] = {}
     _setup_common_monkeypatches(monkeypatch, captured)
 
@@ -147,13 +147,11 @@ async def test_add_notes_unknown_target_field_warn(monkeypatch):
     )
     args = server.AddNotesArgs(deck="Deck", model="Basic", notes=[note])
 
-    result = await server.add_notes.fn(args)
+    with pytest.raises(ValueError) as exc:
+        await server.add_notes.fn(args)
 
-    assert result.added == 1
-    warns = [detail for detail in result.details if detail.get("warn") == "unknown_target_field"]
-    assert warns and warns[0]["index"] == 0
-    assert warns[0]["field"] == "oops"
-
-    add_notes_payload = captured.get("addNotes")
-    assert isinstance(add_notes_payload, dict)
-    assert add_notes_payload["notes"][0]["fields"].get("Back", "") == ""
+    message = str(exc.value)
+    assert "note index 0" in message
+    assert "'oops'" in message
+    assert "'Front'" in message and "'Back'" in message
+    assert "addNotes" not in captured

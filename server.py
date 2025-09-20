@@ -473,7 +473,7 @@ async def add_from_model(deck: str = DEFAULT_DECK, model: str = DEFAULT_MODEL, i
                 continue
             try:
                 await store_media_file(fname, data_b64)
-                prev = fields.get(canonical_target, "")
+                prev = fields[canonical_target]
                 fields[canonical_target] = ensure_img_tag(prev, fname)
             except Exception as e:
                 results.append({"index": i, "warn": f"store_media_failed: {e}"})
@@ -516,13 +516,14 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
 
     model_fields, _, _ = await get_model_fields_templates(args.model)
 
+    canonical_field_map = {field.lower(): field for field in model_fields}
+
     notes_payload: List[dict] = []
     results: List[dict] = []
     added = skipped = 0
 
     for i, note in enumerate(args.notes):
         fields = normalize_and_validate_note_fields(note.fields, model_fields)
-        field_aliases = {name.lower(): name for name in fields}
 
         # data URL прямо в полях
         await process_data_urls_in_fields(fields, results, i)
@@ -547,19 +548,17 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
                 continue
 
             fname = img.filename or f"{uuid.uuid4().hex}.{ext_hint or 'jpg'}"
-            canonical_target = field_aliases.get(img.target_field.lower())
+            canonical_target = canonical_field_map.get(img.target_field.lower())
             if not canonical_target:
-                results.append(
-                    {
-                        "index": i,
-                        "warn": "unknown_target_field",
-                        "field": img.target_field,
-                    }
+                allowed_fields = ", ".join(repr(name) for name in model_fields)
+                raise ValueError(
+                    "Unknown image target field "
+                    f"{img.target_field!r} for note index {i}. "
+                    f"Allowed fields: [{allowed_fields}]"
                 )
-                continue
             try:
                 await store_media_file(fname, data_b64)
-                prev = fields.get(canonical_target, "")
+                prev = fields[canonical_target]
                 fields[canonical_target] = ensure_img_tag(prev, fname)
             except Exception as e:
                 results.append({"index": i, "warn": f"store_media_failed: {e}"})
