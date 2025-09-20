@@ -84,9 +84,9 @@ async def test_add_notes_includes_dedup_key(monkeypatch):
         if action == "modelFieldNames":
             return ["Front", "Back"]
         if action == "modelTemplates":
-            return {}
+            raise AssertionError("modelTemplates should not be called for add_notes")
         if action == "modelStyling":
-            return {"css": ""}
+            raise AssertionError("modelStyling should not be called for add_notes")
         if action == "addNotes":
             return [202, None]
         raise AssertionError(f"Unexpected action: {action}")
@@ -120,9 +120,9 @@ async def test_add_notes_lowercase_fields_empty_front(monkeypatch):
         if action == "modelFieldNames":
             return ["Front", "Back"]
         if action == "modelTemplates":
-            return {}
+            raise AssertionError("modelTemplates should not be called for add_notes")
         if action == "modelStyling":
-            return {"css": ""}
+            raise AssertionError("modelStyling should not be called for add_notes")
         if action == "addNotes":
             raise AssertionError("addNotes should not be called when fields invalid")
         raise AssertionError(f"Unexpected action: {action}")

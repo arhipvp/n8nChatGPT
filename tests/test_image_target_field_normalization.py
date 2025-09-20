@@ -47,7 +47,7 @@ def anyio_backend():
 IMAGE_B64 = base64.b64encode(b"target-alias").decode("ascii")
 
 
-def _setup_common_monkeypatches(monkeypatch, captured):
+def _setup_common_monkeypatches(monkeypatch, captured, *, allow_template_calls: bool = True):
     async def fake_anki_call(action: str, params: dict):
         if action == "createDeck":
             captured["createDeck"] = params
@@ -55,8 +55,12 @@ def _setup_common_monkeypatches(monkeypatch, captured):
         if action == "modelFieldNames":
             return ["Front", "Back"]
         if action == "modelTemplates":
+            if not allow_template_calls:
+                raise AssertionError("modelTemplates should not be called for add_notes")
             return {}
         if action == "modelStyling":
+            if not allow_template_calls:
+                raise AssertionError("modelStyling should not be called for add_notes")
             return {"css": ""}
         if action == "addNotes":
             captured["addNotes"] = params
@@ -117,7 +121,7 @@ async def test_add_from_model_unknown_target_field_warn(monkeypatch):
 @pytest.mark.anyio
 async def test_add_notes_image_target_field_normalized(monkeypatch):
     captured: dict[str, object] = {}
-    _setup_common_monkeypatches(monkeypatch, captured)
+    _setup_common_monkeypatches(monkeypatch, captured, allow_template_calls=False)
 
     note = server.NoteInput(
         fields={"Front": "Question", "Back": ""},
@@ -139,7 +143,7 @@ async def test_add_notes_image_target_field_normalized(monkeypatch):
 @pytest.mark.anyio
 async def test_add_notes_unknown_target_field_raises(monkeypatch):
     captured: dict[str, object] = {}
-    _setup_common_monkeypatches(monkeypatch, captured)
+    _setup_common_monkeypatches(monkeypatch, captured, allow_template_calls=False)
 
     note = server.NoteInput(
         fields={"Front": "Question", "Back": ""},
