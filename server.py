@@ -379,6 +379,29 @@ def normalize_fields_for_model(
     return normalized, len(matched_keys), sorted(unknown_fields)
 
 
+def normalize_and_validate_note_fields(
+    user_fields: Dict[str, str], model_fields: List[str]
+) -> Dict[str, str]:
+    fields, matched_count, unknown_fields = normalize_fields_for_model(
+        user_fields, model_fields
+    )
+
+    if not model_fields:
+        raise ValueError("Model has no fields configured")
+
+    if matched_count == 0 or not fields.get(model_fields[0]):
+        expected = ", ".join(repr(name) for name in model_fields)
+        provided = ", ".join(repr(name) for name in unknown_fields)
+        raise ValueError(
+            "Unknown note fields: "
+            f"[{provided}]"  # квадратные скобки для единообразия с ожиданиями теста
+            f". Expected fields: [{expected}]. "
+            f"Ensure required field '{model_fields[0]}' is provided."
+        )
+
+    return fields
+
+
 # ======================== ИНСТРУМЕНТЫ ========================
 
 @app.tool(name="anki.model_info")
@@ -411,20 +434,8 @@ async def add_from_model(deck: str = DEFAULT_DECK, model: str = DEFAULT_MODEL, i
     added = skipped = 0
 
     for i, note in enumerate(items):
-        # 1) нормализуем поля под модель
-        fields, matched_count, unknown_fields = normalize_fields_for_model(
-            note.fields, model_fields
-        )
-
-        if matched_count == 0 or not fields.get(model_fields[0]):
-            expected = ", ".join(repr(name) for name in model_fields)
-            provided = ", ".join(repr(name) for name in unknown_fields)
-            raise ValueError(
-                "Unknown note fields: "
-                f"[{provided}]"  # квадратные скобки для единообразия с ожиданиями теста
-                f". Expected fields: [{expected}]. "
-                f"Ensure required field '{model_fields[0]}' is provided."
-            )
+        # 1) нормализуем поля под модель с валидацией
+        fields = normalize_and_validate_note_fields(note.fields, model_fields)
 
         # 2) data URL внутри полей (например, поле Image)
         await process_data_urls_in_fields(fields, results, i)
@@ -492,12 +503,14 @@ async def add_from_model(deck: str = DEFAULT_DECK, model: str = DEFAULT_MODEL, i
 async def add_notes(args: AddNotesArgs) -> AddNotesResult:
     await anki_call("createDeck", {"deck": args.deck})
 
+    model_fields, _, _ = await get_model_fields_templates(args.model)
+
     notes_payload: List[dict] = []
     results: List[dict] = []
     added = skipped = 0
 
     for i, note in enumerate(args.notes):
-        fields = {k: (v or "") for k, v in note.fields.items()}
+        fields = normalize_and_validate_note_fields(note.fields, model_fields)
 
         # data URL прямо в полях
         await process_data_urls_in_fields(fields, results, i)
