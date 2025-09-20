@@ -183,7 +183,7 @@ class ImageSpec(BaseModel):
     image_url: Optional[AnyHttpUrl] = None
     target_field: constr(strip_whitespace=True, min_length=1) = "Back"
     filename: Optional[str] = None
-    max_side: int = 768  # ресайз по длинной стороне
+    max_side: int = Field(default=768, ge=1)  # ресайз по длинной стороне
 
 
 class NoteInput(BaseModel):
@@ -231,6 +231,9 @@ async def store_media_file(filename: str, data_b64: str):
 
 
 async def fetch_image_as_base64(url: str, max_side: int) -> str:
+    if max_side < 1:
+        raise ValueError("max_side must be at least 1")
+
     async with httpx.AsyncClient(timeout=30, follow_redirects=True) as c:
         r = await c.get(url)
         r.raise_for_status()
