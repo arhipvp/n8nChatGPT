@@ -44,7 +44,7 @@
    - Оставьте окно запущенного скрипта открытым (терминал с `python main.py`); завершение `Ctrl+C` корректно остановит MCP и ngrok, а при закрытом терминале коннектор станет недоступен.
 
 ## Что умеет сервер
-- `anki.model_info` — возвращает актуальные поля, шаблоны карточек и CSS выбранной модели Anki, чтобы ChatGPT мог заранее сформировать корректные поля. Параметр `model` можно не передавать — по умолчанию используется `ANKI_DEFAULT_MODEL` (`"Sentence (DE)"`, если переменная не задана или пуста).
+- `anki.model_info` — возвращает актуальные поля, шаблоны карточек и CSS выбранной модели Anki, чтобы ChatGPT мог заранее сформировать корректные поля. Параметр `model` можно не передавать — по умолчанию используется `ANKI_DEFAULT_MODEL` (`"Поля для ChatGPT"`, если переменная не задана или пуста).
 - `anki.add_from_model` — нормализует поля под модель, преобразует встроенные `data:`-URL в медиафайлы, загружает изображения по URL/base64 с ресайзом и отмечает результаты через `dedup_key`, помогая ChatGPT безопасно обновлять карточки без дублей.
 - `anki.add_notes` — низкоуровневый аналог без авто-подстановки полей модели для случаев, когда структуру карточки контролирует пользователь.
 - `anki.note_info` — возвращает подробные данные о заметках (поля, теги, карточки) по их идентификаторам, что помогает уточнять существующие записи перед обновлениями.
@@ -55,62 +55,61 @@
 
 ## Модель Anki по умолчанию
 
-По умолчанию сервер работает с пользовательской моделью `Sentence (DE)`. Чтобы запросы `anki.model_info` и `anki.add_from_model` корректно формировали заметки, важно сохранять порядок полей и шаблоны ровно в том виде, в котором они описаны ниже.
+По умолчанию сервер работает с пользовательской моделью `Поля для ChatGPT`. Чтобы запросы `anki.model_info` и `anki.add_from_model` корректно формировали заметки, важно сохранять порядок полей и шаблоны ровно в том виде, в котором они описаны ниже.
 
 ### Поля (порядок обязателен)
-1. `Sentence` — немецкое предложение.
-2. `Translation` — перевод.
-3. `Hint` — краткая подсказка (грамматика, комментарий).
-4. `Notes` — дополнительные пояснения или источник.
+1. `Prompt` — исходный запрос или задача.
+2. `Response` — ответ ChatGPT.
+3. `Context` — дополнительная информация, которую следует помнить при повторении.
+4. `Sources` — ссылки на материалы, выдержки из документов и другие источники.
 
 ### Шаблон «Front»
 ```html
-<div class="sentence">{{Sentence}}</div>
-<div class="hint">{{Hint}}</div>
-{{tts de_DE voices=AwesomeTTS:SentenceDE}}
+<div class="prompt">{{Prompt}}</div>
+<div class="context">{{Context}}</div>
 ```
 
 ### Шаблон «Back»
 ```html
 {{FrontSide}}
 <hr id="answer">
-<div class="translation">{{Translation}}</div>
-<div class="notes">{{Notes}}</div>
+<div class="response">{{Response}}</div>
+<div class="sources">{{Sources}}</div>
 ```
 
 ### CSS модели
 ```css
 .card {
-  font-family: "Fira Sans", sans-serif;
-  font-size: 26px;
+  font-family: "Inter", "Segoe UI", sans-serif;
+  font-size: 22px;
   text-align: left;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
-.sentence {
+.prompt {
   font-weight: 600;
+  font-size: 24px;
   margin-bottom: 12px;
 }
 
-.hint {
+.context {
   color: #4a5568;
   font-style: italic;
   margin-bottom: 16px;
 }
 
-.translation {
-  color: #2d3748;
-  font-size: 24px;
+.response {
+  color: #1a202c;
+  font-size: 22px;
   margin-bottom: 12px;
 }
 
-.notes {
+.sources {
   color: #2d3748;
-  font-size: 20px;
+  font-size: 18px;
+  white-space: pre-wrap;
 }
 ```
-
-TTS-вызов `{{tts de_DE voices=AwesomeTTS:SentenceDE}}` размещён на лицевой стороне и использует плагин AwesomeTTS с голосовым профилем `SentenceDE`. Убедитесь, что соответствующий профиль активирован в Anki, иначе воспроизведение произойдёт с настройками по умолчанию.
 
 ## Локальный smoke-тест
 Запустите `python test_client.py`, чтобы проверить базовое взаимодействие с MCP-сервером без туннеля.
