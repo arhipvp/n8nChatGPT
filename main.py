@@ -278,16 +278,20 @@ if __name__ == "__main__":
     print("\nОставь окно открытым. Нажми Ctrl+C, чтобы остановить.")
 
     # 4) Основной цикл
+    exit_code = 0
     try:
         while True:
             time.sleep(1)
             if mcp.poll() is not None:
                 print("[error] MCP-сервер завершился. Останавливаемся.")
+                exit_code = 1
                 break
             if ng and ng.poll() is not None and not ngrok_api_alive():
                 print("[error] ngrok завершился. Останавливаемся.")
+                exit_code = 1
                 break
     except KeyboardInterrupt:
         pass
     finally:
         shutdown()
+    sys.exit(exit_code)
