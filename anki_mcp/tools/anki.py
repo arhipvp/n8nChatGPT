@@ -380,6 +380,10 @@ async def add_from_model(
 
         fields = anki_services.normalize_and_validate_note_fields(note.fields, model_fields)
 
+        for field_name, value in list(fields.items()):
+            if field_name.lower() == "sources":
+                fields[field_name] = anki_services.auto_link_urls(value)
+
         await anki_services.process_data_urls_in_fields(fields, results, index)
 
         for img in note.images:
@@ -485,6 +489,10 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
         model_fields, canonical_field_map = await _ensure_model_context(note_model)
 
         fields = anki_services.normalize_and_validate_note_fields(note.fields, model_fields)
+
+        for field_name, value in list(fields.items()):
+            if field_name.lower() == "sources":
+                fields[field_name] = anki_services.auto_link_urls(value)
 
         await anki_services.process_data_urls_in_fields(fields, results, index)
 
