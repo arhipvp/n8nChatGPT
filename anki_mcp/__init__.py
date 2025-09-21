@@ -38,9 +38,12 @@ from .manifest import (
 from .schemas import (
     AddNotesArgs,
     AddNotesResult,
+    CardTemplateSpec,
     FindNotesArgs,
     FindNotesResponse,
     ImageSpec,
+    CreateModelArgs,
+    CreateModelResult,
     ModelInfo,
     NOTE_RESERVED_TOP_LEVEL_KEYS,
     NoteInfo,
@@ -59,6 +62,9 @@ from .schemas import (
 __all__ = [
     "AddNotesArgs",
     "AddNotesResult",
+    "CardTemplateSpec",
+    "CreateModelArgs",
+    "CreateModelResult",
     "ANKI_URL",
     "DEFAULT_DECK",
     "DEFAULT_MODEL",
