@@ -12,6 +12,8 @@ pytest.importorskip("fastmcp")
 
 import server
 
+import anki_mcp.config as config
+
 
 @pytest.fixture(scope="module")
 def client():
@@ -36,7 +38,7 @@ def test_manifest_endpoints_return_manifest_json(client, path):
 
 
 def test_manifest_search_capability_enabled_when_url(monkeypatch, client):
-    monkeypatch.setattr(server, "SEARCH_API_URL", "https://example.com/search")
+    monkeypatch.setattr(config, "SEARCH_API_URL", "https://example.com/search")
 
     response = client.get("/")
 

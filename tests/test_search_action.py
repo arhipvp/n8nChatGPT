@@ -4,6 +4,8 @@ pytest.importorskip("fastmcp")
 
 import server
 
+import anki_mcp.config as config
+
 
 @pytest.fixture
 def anyio_backend():
@@ -12,8 +14,8 @@ def anyio_backend():
 
 @pytest.mark.anyio
 async def test_search_action_returns_normalized_response(monkeypatch):
-    monkeypatch.setattr(server, "SEARCH_API_URL", "https://example.com/search")
-    monkeypatch.setattr(server, "SEARCH_API_KEY", "secret-token")
+    monkeypatch.setattr(config, "SEARCH_API_URL", "https://example.com/search")
+    monkeypatch.setattr(config, "SEARCH_API_KEY", "secret-token")
 
     captured = {}
 

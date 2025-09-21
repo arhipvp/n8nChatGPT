@@ -87,7 +87,7 @@ async def test_add_from_model_unknown_fields_raise(monkeypatch):
             raise AssertionError("modelStyling should not be called")
         raise AssertionError(f"Unexpected action: {action}")
 
-    monkeypatch.setattr("server.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
 
     note = NoteInput(fields={"Question": "What is new?"})
 
@@ -122,7 +122,7 @@ async def test_add_from_model_accepts_flat_fields(monkeypatch):
             raise AssertionError("modelStyling should not be called")
         raise AssertionError(f"Unexpected action: {action}")
 
-    monkeypatch.setattr("server.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
 
     items = [NoteInput(Front="Question?", Back="Answer!")]
 
@@ -155,7 +155,7 @@ async def test_add_from_model_accepts_plain_dict(monkeypatch):
             raise AssertionError("modelStyling should not be called")
         raise AssertionError(f"Unexpected action: {action}")
 
-    monkeypatch.setattr("server.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
 
     result = await add_from_model.fn(
         deck="Deck",
@@ -190,7 +190,7 @@ async def test_add_from_model_normalizes_note_input_tags(monkeypatch):
             raise AssertionError("modelStyling should not be called")
         raise AssertionError(f"Unexpected action: {action}")
 
-    monkeypatch.setattr("server.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
 
     note = NoteInput(Front="Q", Back="A", tags="auto")
 
@@ -220,7 +220,7 @@ async def test_add_notes_accepts_flat_fields(monkeypatch):
             return [777]
         raise AssertionError(f"Unexpected action: {action}")
 
-    monkeypatch.setattr("server.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
 
     args = AddNotesArgs(deck="Deck", model="Basic", notes=[{"Front": "Q", "Back": "A"}])
 
@@ -262,7 +262,7 @@ async def test_add_from_model_respects_note_level_deck_and_model(monkeypatch):
             raise AssertionError("modelStyling should not be called")
         raise AssertionError(f"Unexpected action: {action}")
 
-    monkeypatch.setattr("server.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
 
     default_note = NoteInput(Front="Q1", Back="A1")
     override_note = NoteInput(
@@ -318,7 +318,7 @@ async def test_add_notes_respects_note_level_deck_and_model(monkeypatch):
             return [333, 444]
         raise AssertionError(f"Unexpected action: {action}")
 
-    monkeypatch.setattr("server.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
 
     args = AddNotesArgs(
         deck="Deck",

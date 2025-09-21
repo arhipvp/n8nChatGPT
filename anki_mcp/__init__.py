@@ -1,0 +1,81 @@
+"""Основной пакет MCP-сервера Anki."""
+
+from __future__ import annotations
+
+from fastmcp import FastMCP
+
+
+# Инициализация FastMCP-приложения доступна для импорта из пакета.
+app = FastMCP("anki-mcp")
+
+if not hasattr(app, "action"):
+    setattr(app, "action", app.tool)
+
+
+from . import actions  # noqa: E402 - регистрация действий
+from . import tools  # noqa: E402 - регистрация инструментов
+from .config import (
+    ANKI_URL,
+    DEFAULT_DECK,
+    DEFAULT_MODEL,
+    ENVIRONMENT_INFO,
+    SEARCH_API_KEY,
+    SEARCH_API_URL,
+    _env_default,
+    _env_optional,
+)
+from .manifest import (
+    _build_manifest,
+    _manifest_response,
+    _normalize_manifest,
+    read_root,
+    read_well_known_manifest,
+)
+from .schemas import (
+    AddNotesArgs,
+    AddNotesResult,
+    FindNotesArgs,
+    FindNotesResponse,
+    ImageSpec,
+    ModelInfo,
+    NOTE_RESERVED_TOP_LEVEL_KEYS,
+    NoteInfo,
+    NoteInfoArgs,
+    NoteInfoResponse,
+    NoteInput,
+    SearchRequest,
+    SearchResponse,
+    SearchResult,
+)
+
+
+__all__ = [
+    "AddNotesArgs",
+    "AddNotesResult",
+    "ANKI_URL",
+    "DEFAULT_DECK",
+    "DEFAULT_MODEL",
+    "ENVIRONMENT_INFO",
+    "FindNotesArgs",
+    "FindNotesResponse",
+    "ImageSpec",
+    "ModelInfo",
+    "NOTE_RESERVED_TOP_LEVEL_KEYS",
+    "NoteInfo",
+    "NoteInfoArgs",
+    "NoteInfoResponse",
+    "NoteInput",
+    "SEARCH_API_KEY",
+    "SEARCH_API_URL",
+    "SearchRequest",
+    "SearchResponse",
+    "SearchResult",
+    "_build_manifest",
+    "_env_default",
+    "_env_optional",
+    "_manifest_response",
+    "_normalize_manifest",
+    "app",
+    "read_root",
+    "read_well_known_manifest",
+]

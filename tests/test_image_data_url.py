@@ -86,8 +86,8 @@ async def test_add_from_model_sanitizes_data_url(monkeypatch):
             return [123]
         raise AssertionError(f"unexpected action: {action}")
 
-    monkeypatch.setattr(server, "store_media_file", fake_store_media_file)
-    monkeypatch.setattr(server, "anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.anki.store_media_file", fake_store_media_file)
+    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
     monkeypatch.setattr(server.uuid, "uuid4", lambda: DummyUUID("abc123"))
 
     image = server.ImageSpec(image_base64=data_url, target_field="Back")
@@ -113,7 +113,7 @@ async def test_process_data_urls_accepts_mixed_case_prefix(monkeypatch):
         stored["filename"] = filename
         stored["data"] = data_b64
 
-    monkeypatch.setattr(server, "store_media_file", fake_store_media_file)
+    monkeypatch.setattr("anki_mcp.services.anki.store_media_file", fake_store_media_file)
 
     original_value = f"Before text {data_url}"
     fields = {"Back": original_value}
@@ -157,8 +157,8 @@ async def test_data_url_and_images_share_same_html(monkeypatch):
             return [456]
         raise AssertionError(f"unexpected action: {action}")
 
-    monkeypatch.setattr(server, "store_media_file", fake_store_media_file)
-    monkeypatch.setattr(server, "anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.anki.store_media_file", fake_store_media_file)
+    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
     monkeypatch.setattr(server.uuid, "uuid4", lambda: DummyUUID("imguuid"))
 
     fields = {"Back": f"Existing {data_url}"}
@@ -204,8 +204,8 @@ async def test_add_from_model_target_field_is_case_insensitive(monkeypatch):
             return [555]
         raise AssertionError(f"unexpected action: {action}")
 
-    monkeypatch.setattr(server, "store_media_file", fake_store_media_file)
-    monkeypatch.setattr(server, "anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.anki.store_media_file", fake_store_media_file)
+    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
     monkeypatch.setattr(server.uuid, "uuid4", lambda: DummyUUID("case-img"))
 
     image = server.ImageSpec(image_base64="data:image/png;base64,Zm9v", target_field="back")
@@ -238,7 +238,7 @@ async def test_add_from_model_unknown_target_field_warn(monkeypatch):
             return [4321]
         raise AssertionError(f"unexpected action: {action}")
 
-    monkeypatch.setattr(server, "anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
 
     image = server.ImageSpec(image_base64="data:image/png;base64,Zm9v", target_field="Summary")
     note = server.NoteInput(fields={"Front": "Question"}, images=[image])
@@ -283,9 +283,9 @@ async def test_note_input_accepts_url_alias(monkeypatch):
             return [987]
         raise AssertionError(f"unexpected action: {action}")
 
-    monkeypatch.setattr(server, "fetch_image_as_base64", fake_fetch_image)
-    monkeypatch.setattr(server, "store_media_file", fake_store_media_file)
-    monkeypatch.setattr(server, "anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.anki.fetch_image_as_base64", fake_fetch_image)
+    monkeypatch.setattr("anki_mcp.services.anki.store_media_file", fake_store_media_file)
+    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
     monkeypatch.setattr(server.uuid, "uuid4", lambda: DummyUUID("img-alias"))
 
     note = server.NoteInput(
