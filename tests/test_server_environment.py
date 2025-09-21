@@ -45,6 +45,24 @@ def test_env_defaults_fallback_when_blank():
         importlib.reload(server)
 
 
+def test_package_exports_follow_reload():
+    import anki_mcp
+
+    original_deck = os.environ.get("ANKI_DEFAULT_DECK")
+    original_model = os.environ.get("ANKI_DEFAULT_MODEL")
+
+    try:
+        os.environ["ANKI_DEFAULT_DECK"] = "PackageDeck"
+        os.environ["ANKI_DEFAULT_MODEL"] = "PackageModel"
+        anki_mcp.config.reload_from_env()
+
+        assert anki_mcp.DEFAULT_DECK == "PackageDeck"
+        assert anki_mcp.DEFAULT_MODEL == "PackageModel"
+    finally:
+        _restore_env(original_deck, original_model)
+        anki_mcp.config.reload_from_env()
+
+
 @pytest.mark.anyio
 async def test_manifest_environment_contains_defaults():
     original_deck = os.environ.get("ANKI_DEFAULT_DECK")
