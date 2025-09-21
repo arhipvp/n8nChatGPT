@@ -43,9 +43,12 @@ from .schemas import (
     NoteInfoArgs,
     NoteInfoResponse,
     NoteInput,
+    NoteUpdate,
     SearchRequest,
     SearchResponse,
     SearchResult,
+    UpdateNotesArgs,
+    UpdateNotesResult,
 )
 
 
@@ -65,11 +68,14 @@ __all__ = [
     "NoteInfoArgs",
     "NoteInfoResponse",
     "NoteInput",
+    "NoteUpdate",
     "SEARCH_API_KEY",
     "SEARCH_API_URL",
     "SearchRequest",
     "SearchResponse",
     "SearchResult",
+    "UpdateNotesArgs",
+    "UpdateNotesResult",
     "_build_manifest",
     "_env_default",
     "_env_optional",

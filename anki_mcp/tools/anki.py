@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 from .. import app
 from ..compat import model_validate
@@ -19,6 +19,9 @@ from ..schemas import (
     NoteInfoArgs,
     NoteInfoResponse,
     NoteInput,
+    NoteUpdate,
+    UpdateNotesArgs,
+    UpdateNotesResult,
 )
 from ..services import anki as anki_services
 
@@ -325,10 +328,237 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
     return AddNotesResult(added=added, skipped=skipped, details=results)
 
 
+@app.tool(name="anki.update_notes")
+async def update_notes(args: UpdateNotesArgs) -> UpdateNotesResult:
+    note_ids = [note.note_id for note in args.notes]
+    raw_notes = await anki_services.anki_call("notesInfo", {"notes": note_ids})
+    normalized_notes = anki_services.normalize_notes_info(raw_notes)
+
+    info_by_id: Dict[int, Optional[NoteInfo]] = {}
+    for requested_id, note_info in zip(note_ids, normalized_notes):
+        info_by_id[requested_id] = note_info
+
+    model_fields_cache: Dict[str, List[str]] = {}
+    canonical_field_cache: Dict[str, Dict[str, str]] = {}
+
+    updated = 0
+    skipped = 0
+    details: List[dict] = []
+
+    for index, update in enumerate(args.notes):
+        detail_logs: List[dict] = []
+        detail: Dict[str, Any] = {"index": index, "noteId": update.note_id}
+
+        info = info_by_id.get(update.note_id)
+        if info is None:
+            detail["status"] = "not_found"
+            skipped += 1
+            details.append(detail)
+            continue
+
+        model_name = info.model_name or ""
+        deck_name = info.deck_name or ""
+        detail["model"] = model_name
+        detail["deck"] = deck_name
+
+        if model_name:
+            model_fields = model_fields_cache.get(model_name)
+            if model_fields is None:
+                if info.fields:
+                    model_fields = list(info.fields.keys())
+                else:
+                    model_fields = await anki_services.get_model_field_names(model_name)
+                model_fields_cache[model_name] = model_fields
+            canonical_field_map = canonical_field_cache.setdefault(
+                model_name, {field.lower(): field for field in model_fields}
+            )
+        else:
+            model_fields = list(info.fields.keys()) if info.fields else []
+            canonical_field_map = {
+                field.lower(): field for field in model_fields
+            }
+            canonical_field_cache.setdefault(model_name, canonical_field_map)
+
+        fields_payload: Dict[str, str] = {}
+        updated_fields: List[str] = []
+
+        if update.fields:
+            raw_fields: Dict[str, str] = {}
+            for raw_key, raw_value in update.fields.items():
+                if isinstance(raw_value, Mapping) and "value" in raw_value:
+                    candidate = raw_value.get("value")
+                else:
+                    candidate = raw_value
+
+                if candidate is None:
+                    normalized_value = ""
+                elif isinstance(candidate, str):
+                    normalized_value = candidate
+                else:
+                    normalized_value = str(candidate)
+
+                raw_fields[str(raw_key)] = normalized_value
+
+            normalized, matched_count, unknown_fields = (
+                anki_services.normalize_fields_for_model(raw_fields, model_fields)
+            )
+
+            if unknown_fields:
+                detail["status"] = "error"
+                detail["error"] = {
+                    "type": "unknown_fields",
+                    "fields": unknown_fields,
+                }
+                skipped += 1
+                details.append(detail)
+                continue
+
+            if matched_count == 0:
+                detail["status"] = "noop"
+                detail_logs.append({
+                    "index": index,
+                    "warn": "no_matching_fields",
+                })
+            else:
+                for original_key, value in raw_fields.items():
+                    canonical = canonical_field_map.get(original_key.lower())
+                    if canonical:
+                        fields_payload[canonical] = normalized.get(canonical, value)
+                        updated_fields.append(canonical)
+
+        await anki_services.process_data_urls_in_fields(
+            fields_payload, detail_logs, index
+        )
+
+        for img in update.images:
+            ext_hint: Optional[str] = None
+            if img.image_base64:
+                try:
+                    data_b64, ext_hint = anki_services.sanitize_image_payload(
+                        img.image_base64
+                    )
+                except ValueError as exc:
+                    detail_logs.append(
+                        {
+                            "index": index,
+                            "warn": f"invalid_image_base64: {exc}",
+                        }
+                    )
+                    continue
+            elif img.image_url:
+                try:
+                    data_b64 = await anki_services.fetch_image_as_base64(
+                        str(img.image_url), img.max_side
+                    )
+                except Exception as exc:  # pragma: no cover - network failures
+                    detail_logs.append(
+                        {"index": index, "warn": f"fetch_image_failed: {exc}"}
+                    )
+                    continue
+            else:
+                detail_logs.append({"index": index, "warn": "no_image_provided"})
+                continue
+
+            filename = img.filename or f"{uuid.uuid4().hex}.{ext_hint or 'jpg'}"
+            canonical_target = canonical_field_map.get(img.target_field.lower())
+            if not canonical_target:
+                detail_logs.append(
+                    {
+                        "index": index,
+                        "warn": "unknown_target_field",
+                        "field": img.target_field,
+                    }
+                )
+                continue
+
+            previous = fields_payload.get(
+                canonical_target,
+                (info.fields or {}).get(canonical_target, ""),
+            )
+            try:
+                await anki_services.store_media_file(filename, data_b64)
+                fields_payload[canonical_target] = anki_services.ensure_img_tag(
+                    previous, filename
+                )
+                updated_fields.append(canonical_target)
+            except Exception as exc:  # pragma: no cover - error path
+                detail_logs.append(
+                    {"index": index, "warn": f"store_media_failed: {exc}"}
+                )
+
+        operations_performed = False
+
+        try:
+            if fields_payload:
+                await anki_services.anki_call(
+                    "updateNoteFields",
+                    {"note": {"id": update.note_id, "fields": fields_payload}},
+                )
+                operations_performed = True
+
+            if update.add_tags:
+                tags_payload = " ".join(update.add_tags)
+                await anki_services.anki_call(
+                    "addTags", {"notes": [update.note_id], "tags": tags_payload}
+                )
+                detail["addedTags"] = update.add_tags
+                operations_performed = True
+
+            if update.remove_tags:
+                tags_payload = " ".join(update.remove_tags)
+                await anki_services.anki_call(
+                    "removeTags",
+                    {"notes": [update.note_id], "tags": tags_payload},
+                )
+                detail["removedTags"] = update.remove_tags
+                operations_performed = True
+
+            if update.deck and update.deck != deck_name:
+                cards = info.cards or []
+                if cards:
+                    await anki_services.anki_call(
+                        "changeDeck", {"cards": cards, "deck": update.deck}
+                    )
+                    detail["deckChangedTo"] = update.deck
+                    operations_performed = True
+                else:
+                    detail_logs.append(
+                        {"index": index, "warn": "no_cards_for_deck_change"}
+                    )
+        except Exception as exc:
+            detail["status"] = "error"
+            detail["error"] = str(exc)
+            skipped += 1
+            if detail_logs:
+                detail["logs"] = detail_logs
+            if updated_fields:
+                detail["updatedFields"] = sorted(set(updated_fields))
+            details.append(detail)
+            continue
+
+        if updated_fields:
+            detail["updatedFields"] = sorted(set(updated_fields))
+
+        if detail_logs:
+            detail["logs"] = detail_logs
+
+        if operations_performed:
+            detail["status"] = "ok"
+            updated += 1
+        else:
+            detail["status"] = detail.get("status", "noop")
+            skipped += 1
+
+        details.append(detail)
+
+    return UpdateNotesResult(updated=updated, skipped=skipped, details=details)
+
+
 __all__ = [
     "add_from_model",
     "add_notes",
     "find_notes",
     "model_info",
     "note_info",
+    "update_notes",
 ]

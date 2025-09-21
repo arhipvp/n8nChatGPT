@@ -12,6 +12,9 @@ from .notes import (
     NoteInfoArgs,
     NoteInfoResponse,
     NoteInput,
+    NoteUpdate,
+    UpdateNotesArgs,
+    UpdateNotesResult,
 )
 from .search import SearchRequest, SearchResponse, SearchResult
 
@@ -28,7 +31,10 @@ __all__ = [
     "NoteInfoArgs",
     "NoteInfoResponse",
     "NoteInput",
+    "NoteUpdate",
     "SearchRequest",
     "SearchResponse",
     "SearchResult",
+    "UpdateNotesArgs",
+    "UpdateNotesResult",
 ]
