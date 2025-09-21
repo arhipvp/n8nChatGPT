@@ -13,14 +13,20 @@ import httpx
 from PIL import Image
 
 from ..compat import model_validate
-from ..config import ANKI_URL
+from .. import config
 from ..schemas import NoteInfo
+
+
+def __getattr__(name: str):  # pragma: no cover - simple module proxy
+    if name == "ANKI_URL":
+        return config.ANKI_URL
+    raise AttributeError(f"module 'anki_mcp.services.anki' has no attribute {name!r}")
 
 
 async def anki_call(action: str, params: dict):
     payload = {"action": action, "version": 6, "params": params}
     async with httpx.AsyncClient(timeout=25) as client:
-        response = await client.post(ANKI_URL, json=payload)
+        response = await client.post(config.ANKI_URL, json=payload)
         response.raise_for_status()
         data = response.json()
         if data.get("error"):

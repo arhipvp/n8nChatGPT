@@ -16,7 +16,7 @@ from ..compat import (
     root_validator,
     validator,
 )
-from ..config import DEFAULT_DECK, DEFAULT_MODEL
+from .. import config
 from .images import ImageSpec
 
 
@@ -138,9 +138,19 @@ class NoteInput(BaseModel):
             return _normalize_note_input_tags(value)
 
 
+def _default_deck() -> str:
+    return config.DEFAULT_DECK
+
+
+def _default_model() -> str:
+    return config.DEFAULT_MODEL
+
+
 class AddNotesArgs(BaseModel):
-    deck: constr(strip_whitespace=True, min_length=1) = Field(default=DEFAULT_DECK)
-    model: constr(strip_whitespace=True, min_length=1) = Field(default=DEFAULT_MODEL)
+    deck: constr(strip_whitespace=True, min_length=1) = Field(default_factory=_default_deck)
+    model: constr(strip_whitespace=True, min_length=1) = Field(
+        default_factory=_default_model
+    )
     notes: List[NoteInput] = Field(min_length=1)
 
 
