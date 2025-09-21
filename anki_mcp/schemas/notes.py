@@ -160,6 +160,21 @@ class AddNotesResult(BaseModel):
     details: List[dict] = Field(default_factory=list)
 
 
+class DeleteNotesArgs(BaseModel):
+    note_ids: List[int] = Field(min_length=1, alias="noteIds")
+
+    if ConfigDict is not None:  # pragma: no branch
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover
+        class Config:
+            allow_population_by_field_name = True
+
+
+class DeleteNotesResult(BaseModel):
+    deleted: int
+    missing: int
+
+
 class NoteUpdate(BaseModel):
     note_id: int = Field(alias="noteId")
     fields: Optional[Dict[str, Any]] = None
@@ -261,6 +276,8 @@ class ModelInfo(BaseModel):
 __all__ = [
     "AddNotesArgs",
     "AddNotesResult",
+    "DeleteNotesArgs",
+    "DeleteNotesResult",
     "FindNotesArgs",
     "FindNotesResponse",
     "ModelInfo",
