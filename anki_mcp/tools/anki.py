@@ -116,6 +116,46 @@ async def invoke_action(args: InvokeActionArgs) -> Any:
     return result
 
 
+_SYNC_VALUE_ERROR_KEYWORDS = (
+    "invalid",
+    "missing",
+    "empty",
+    "required",
+    "unknown",
+    "no such",
+    "not found",
+    "please provide",
+    "must ",
+    "should ",
+)
+
+
+@app.tool(name="anki.sync")
+async def sync() -> Mapping[str, Any]:
+    try:
+        result = await anki_services.anki_call("sync", {})
+    except RuntimeError as exc:
+        detail = str(exc)
+        if detail.lower().startswith("anki error:"):
+            detail = detail.split(":", 1)[1].strip() or detail
+        lowered = detail.lower()
+        message = f"Не удалось выполнить синхронизацию Anki: {detail}"
+        if any(keyword in lowered for keyword in _SYNC_VALUE_ERROR_KEYWORDS):
+            raise ValueError(message) from exc
+        raise RuntimeError(message) from exc
+
+    if result is None:
+        return {"synced": True}
+
+    if isinstance(result, bool):
+        return {"synced": bool(result)}
+
+    if isinstance(result, Mapping):
+        return dict(result)
+
+    return {"result": result}
+
+
 @app.tool(name="anki.create_model")
 async def create_model(
     args: Union[CreateModelArgs, Mapping[str, Any]]
