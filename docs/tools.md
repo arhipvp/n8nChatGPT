@@ -53,6 +53,37 @@
 - **Поля:**
   - `filename: str` — имя файла в медиахранилище Anki, который требуется удалить.
 
+## Инструмент `anki.store_media`
+
+- **Назначение:** сохраняет произвольный файл в каталоге `collection.media` текущей базы Anki.
+- **Аргументы:**
+  - `filename: str` — имя файла с расширением (обязательное, не должно быть пустым).
+  - `data_base64: str` — содержимое файла в кодировке Base64. Можно передавать как `data_base64`, `dataBase64` или короткий алиас `data`.
+- **Ответ:**
+  - `filename: str` — имя файла, переданное в запросе.
+  - `anki_response: Any` — исходный ответ `storeMediaFile` от AnkiConnect (как правило, `null`).
+
+#### Пример вызова `anki.store_media`
+
+```json
+{
+  "name": "anki.store_media",
+  "arguments": {
+    "filename": "audio/hello.mp3",
+    "data": "VGhpcyBpcyBhIHNhbXBsZSBCYXNlNjQgY29udGVudA=="
+  }
+}
+```
+
+#### Пример ответа
+
+```json
+{
+  "filename": "audio/hello.mp3",
+  "anki_response": null
+}
+```
+
 ### `NoteInput`
 - **Назначение:** входные данные для создания заметки.
 - **Поля:**
