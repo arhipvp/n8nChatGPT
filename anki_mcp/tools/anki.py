@@ -13,6 +13,8 @@ from .. import config
 from ..schemas import (
     AddNotesArgs,
     AddNotesResult,
+    CardInfo,
+    CardsInfoArgs,
     CreateDeckArgs,
     DeckInfo,
     DeleteDecksArgs,
@@ -406,6 +408,40 @@ async def find_cards(
         normalized_ids = normalized_ids[: normalized.limit]
 
     return FindCardsResponse(card_ids=normalized_ids)
+
+
+@app.tool(name="anki.cards_info")
+async def cards_info(
+    args: Union[CardsInfoArgs, Mapping[str, Any]]
+) -> List[CardInfo]:
+    if isinstance(args, CardsInfoArgs):
+        normalized = args
+    else:
+        try:
+            normalized = model_validate(CardsInfoArgs, args)
+        except Exception as exc:
+            raise ValueError(f"Invalid cards_info arguments: {exc}") from exc
+
+    raw_cards = await anki_services.anki_call(
+        "cardsInfo", {"cards": normalized.card_ids}
+    )
+    if not isinstance(raw_cards, list):
+        raise ValueError("cardsInfo response must be a list of card objects")
+
+    normalized_cards: List[CardInfo] = []
+    for index, raw_card in enumerate(raw_cards):
+        if not isinstance(raw_card, Mapping):
+            raise ValueError(
+                f"cardsInfo returned non-object entry at index {index}: {raw_card!r}"
+            )
+        try:
+            normalized_cards.append(model_validate(CardInfo, raw_card))
+        except Exception as exc:
+            raise ValueError(
+                f"cardsInfo returned invalid card at index {index}: {exc}"
+            ) from exc
+
+    return normalized_cards
 
 
 @app.tool(name="anki.get_media")

@@ -38,7 +38,9 @@ from .manifest import (
 from .schemas import (
     AddNotesArgs,
     AddNotesResult,
+    CardInfo,
     CardTemplateSpec,
+    CardsInfoArgs,
     CreateDeckArgs,
     CreateModelArgs,
     CreateModelResult,
@@ -80,7 +82,9 @@ from .schemas import (
 __all__ = [
     "AddNotesArgs",
     "AddNotesResult",
+    "CardInfo",
     "CardTemplateSpec",
+    "CardsInfoArgs",
     "CreateDeckArgs",
     "CreateModelArgs",
     "CreateModelResult",

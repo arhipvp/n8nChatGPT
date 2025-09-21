@@ -3,6 +3,7 @@
 from .anki import (
     add_from_model,
     add_notes,
+    cards_info,
     create_deck,
     create_model,
     delete_decks,
@@ -28,6 +29,7 @@ from .misc import greet
 __all__ = [
     "add_from_model",
     "add_notes",
+    "cards_info",
     "create_deck",
     "create_model",
     "delete_decks",
