@@ -4,7 +4,8 @@ import pytest
 
 import test_deck_tools as deck_helpers
 
-from server import CreateDeckArgs, create_deck
+from anki_mcp import CreateDeckArgs
+from anki_mcp.tools.decks import create_deck
 
 
 def test_create_deck_payload(monkeypatch):

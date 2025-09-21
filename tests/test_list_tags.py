@@ -41,10 +41,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from server import (  # noqa: E402
-    ListTagsResponse,
-    list_tags,
-)
+from anki_mcp import ListTagsResponse  # noqa: E402
+from anki_mcp.tools.decks import list_tags  # noqa: E402
 
 
 def _unwrap_tool(func):

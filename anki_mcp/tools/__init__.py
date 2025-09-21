@@ -1,34 +1,35 @@
 """Пакет с MCP-инструментами."""
 
-from .anki import (
+from .decks import (
+    create_deck,
+    delete_decks,
+    get_deck_config,
+    list_decks,
+    list_tags,
+    rename_deck,
+    save_deck_config,
+)
+from .media import delete_media, get_media, store_media
+from .models import (
+    create_model,
+    list_models,
+    model_info,
+    update_model_styling,
+    update_model_templates,
+)
+from .notes import (
     add_from_model,
     add_notes,
     cards_info,
     cards_to_notes,
-    notes_to_cards,
-    create_deck,
-    create_model,
-    delete_decks,
-    delete_media,
     delete_notes,
     find_cards,
     find_notes,
-    get_media,
-    invoke_action,
-    sync,
-    list_models,
-    list_decks,
-    list_tags,
-    get_deck_config,
-    save_deck_config,
-    model_info,
     note_info,
-    rename_deck,
-    store_media,
-    update_model_styling,
-    update_model_templates,
+    notes_to_cards,
     update_notes,
 )
+from .sync import invoke_action, sync
 from .misc import greet
 
 

@@ -40,11 +40,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from server import (  # noqa: E402
-    CardTemplateSpec,
-    UpdateModelTemplatesArgs,
-    update_model_templates,
-)
+from anki_mcp import CardTemplateSpec, UpdateModelTemplatesArgs  # noqa: E402
+from anki_mcp.tools.models import update_model_templates  # noqa: E402
 
 
 def _unwrap(tool):

@@ -90,7 +90,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from server import FindNotesArgs, FindNotesResponse, find_notes
+from anki_mcp import FindNotesArgs, FindNotesResponse
+from anki_mcp.tools.notes import find_notes
 
 
 def test_find_notes_with_limit_and_offset(monkeypatch):

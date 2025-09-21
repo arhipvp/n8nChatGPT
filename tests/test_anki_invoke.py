@@ -41,7 +41,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from server import InvokeActionArgs, invoke_action  # noqa: E402
+from anki_mcp import InvokeActionArgs  # noqa: E402
+from anki_mcp.tools.sync import invoke_action  # noqa: E402
 
 
 def _unwrap(tool):

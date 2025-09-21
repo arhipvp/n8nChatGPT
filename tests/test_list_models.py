@@ -43,11 +43,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from server import (  # noqa: E402
-    ListModelsResponse,
-    ModelSummary,
-    list_models,
-)
+from anki_mcp import ListModelsResponse, ModelSummary  # noqa: E402
+from anki_mcp.tools.models import list_models  # noqa: E402
 
 
 def _unwrap_tool(func):

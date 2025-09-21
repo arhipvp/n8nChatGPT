@@ -90,7 +90,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from server import FindCardsArgs, FindCardsResponse, find_cards
+from anki_mcp import FindCardsArgs, FindCardsResponse
+from anki_mcp.tools.notes import find_cards
 
 
 def test_find_cards_accepts_mapping(monkeypatch):

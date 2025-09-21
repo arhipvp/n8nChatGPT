@@ -89,7 +89,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from server import NoteInfoArgs, NoteInfoResponse, note_info
+from anki_mcp import NoteInfoArgs, NoteInfoResponse
+from anki_mcp.tools.notes import note_info
 
 
 def test_note_info_normalizes_payload(monkeypatch):
