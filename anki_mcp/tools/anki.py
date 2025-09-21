@@ -23,6 +23,7 @@ from ..schemas import (
     CardTemplateSpec,
     CreateModelArgs,
     CreateModelResult,
+    UpdateModelStylingArgs,
     UpdateModelTemplatesArgs,
     InvokeActionArgs,
     FindNotesArgs,
@@ -197,6 +198,30 @@ async def update_model_templates(
     }
 
     return await anki_services.anki_call("updateModelTemplates", payload)
+
+
+@app.tool(name="anki.update_model_styling")
+async def update_model_styling(
+    args: Union[UpdateModelStylingArgs, Mapping[str, Any]]
+) -> Any:
+    if isinstance(args, UpdateModelStylingArgs):
+        normalized = args
+    else:
+        try:
+            normalized = model_validate(UpdateModelStylingArgs, args)
+        except Exception as exc:
+            raise ValueError(
+                f"Invalid update_model_styling arguments: {exc}"
+            ) from exc
+
+    payload = {
+        "model": {
+            "name": normalized.model_name,
+            "styling": {"css": normalized.css},
+        }
+    }
+
+    return await anki_services.anki_call("updateModelStyling", payload)
 
 
 @app.tool(name="anki.list_decks")

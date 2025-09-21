@@ -14,6 +14,7 @@ from .anki import (
     model_info,
     note_info,
     rename_deck,
+    update_model_styling,
     update_model_templates,
     update_notes,
 )
@@ -35,6 +36,7 @@ __all__ = [
     "model_info",
     "note_info",
     "rename_deck",
+    "update_model_styling",
     "update_model_templates",
     "update_notes",
 ]
