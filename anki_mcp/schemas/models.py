@@ -16,6 +16,19 @@ from ..compat import (
 )
 
 
+class ModelSummary(BaseModel):
+    """Краткое описание модели Anki."""
+
+    id: int
+    name: constr(strip_whitespace=True, min_length=1)
+
+
+class ListModelsResponse(BaseModel):
+    """Ответ AnkiConnect `modelNamesAndIds`."""
+
+    models: List[ModelSummary] = Field(default_factory=list)
+
+
 def _normalize_case_insensitive(values: Mapping[str, Any]) -> Dict[str, Any]:
     normalized: Dict[str, Any] = dict(values)
     lower_map = {key.lower(): key for key in values.keys()}

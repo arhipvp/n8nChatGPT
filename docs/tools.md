@@ -134,6 +134,17 @@
   - `templates: Dict[str, Dict[str, str]]` — шаблоны карточек вида `{ "Card 1": { "Front": "...", "Back": "..." } }`.
   - `styling: str` — CSS-маркировка модели.
 
+### `ModelSummary`
+- **Используется в:** `anki.list_models`.
+- **Поля:**
+  - `id: int` — идентификатор модели в базе Anki.
+  - `name: str` — отображаемое имя модели.
+
+### `ListModelsResponse`
+- **Используется в:** `anki.list_models`.
+- **Поля:**
+  - `models: List[ModelSummary]` — отсортированный по имени список моделей.
+
 ### `CardTemplateSpec`
 - **Назначение:** описывает шаблон карточки новой модели.
 - **Поля:**
@@ -184,6 +195,33 @@
     "model_name": "Поля для ChatGPT",
     "css": ".card { font-family: 'Fira Code', monospace; }"
   }
+}
+```
+
+### Инструмент `anki.list_models`
+
+- **Назначение:** возвращает список доступных моделей Anki вместе с их идентификаторами.
+- **Ответ:** `ListModelsResponse` со списком `ModelSummary`, отсортированным по именам (без учёта регистра).
+- **Ошибки:** при получении от AnkiConnect структуры, отличной от словаря `{ name: id }`, инструмент возбуждает `ValueError`.
+
+#### Пример вызова `anki.list_models`
+
+```json
+{
+  "name": "anki.list_models",
+  "arguments": {}
+}
+```
+
+#### Пример ответа
+
+```json
+{
+  "models": [
+    { "id": 1, "name": "Basic" },
+    { "id": 5, "name": "Basic (and reversed card)" },
+    { "id": 8, "name": "Cloze" }
+  ]
 }
 ```
 

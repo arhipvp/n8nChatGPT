@@ -23,12 +23,14 @@ from ..schemas import (
     CardTemplateSpec,
     CreateModelArgs,
     CreateModelResult,
+    ListModelsResponse,
     UpdateModelStylingArgs,
     UpdateModelTemplatesArgs,
     InvokeActionArgs,
     FindNotesArgs,
     FindNotesResponse,
     ListDecksResponse,
+    ModelSummary,
     ModelInfo,
     NOTE_RESERVED_TOP_LEVEL_KEYS,
     NoteInfo,
@@ -222,6 +224,48 @@ async def update_model_styling(
     }
 
     return await anki_services.anki_call("updateModelStyling", payload)
+
+
+@app.tool(name="anki.list_models")
+async def list_models() -> ListModelsResponse:
+    raw_models = await anki_services.anki_call("modelNamesAndIds", {})
+
+    if raw_models is None:
+        return ListModelsResponse()
+
+    if not isinstance(raw_models, Mapping):
+        raise ValueError(
+            "modelNamesAndIds response must be a mapping of model names to ids"
+        )
+
+    model_summaries: List[ModelSummary] = []
+    for name, model_id in raw_models.items():
+        if not isinstance(name, str):
+            raise ValueError(
+                f"modelNamesAndIds returned invalid model name: {name!r}"
+            )
+
+        if isinstance(model_id, bool):
+            raise ValueError(
+                "modelNamesAndIds returned non-integer model id "
+                f"for {name!r}: {model_id!r}"
+            )
+
+        try:
+            normalized_id = int(model_id)
+        except (TypeError, ValueError):
+            raise ValueError(
+                "modelNamesAndIds returned non-integer model id "
+                f"for {name!r}: {model_id!r}"
+            ) from None
+
+        model_summaries.append(ModelSummary(id=normalized_id, name=name))
+
+    sorted_models = sorted(
+        model_summaries, key=lambda model: (model.name.casefold(), model.name)
+    )
+
+    return ListModelsResponse(models=sorted_models)
 
 
 @app.tool(name="anki.list_decks")
