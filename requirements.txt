@@ -1,0 +1,7 @@
+fastmcp
+fastapi
+httpx
+Pillow
+requests
+python-dotenv
+pydantic
