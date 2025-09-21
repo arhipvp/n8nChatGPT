@@ -9,6 +9,7 @@ from .models import (
     CardTemplateSpec,
     CreateModelArgs,
     CreateModelResult,
+    UpdateModelStylingArgs,
     UpdateModelTemplatesArgs,
 )
 from .notes import (
@@ -38,6 +39,7 @@ __all__ = [
     "CardTemplateSpec",
     "CreateModelArgs",
     "CreateModelResult",
+    "UpdateModelStylingArgs",
     "UpdateModelTemplatesArgs",
     "DeleteMediaArgs",
     "DeckInfo",

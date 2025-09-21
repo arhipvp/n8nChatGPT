@@ -144,6 +144,46 @@ class CreateModelArgs(BaseModel):
         raise TypeError("options must be a mapping of extra parameters")
 
 
+class UpdateModelStylingArgs(BaseModel):
+    """Аргументы инструмента обновления CSS существующей модели."""
+
+    model_name: constr(strip_whitespace=True, min_length=1)
+    css: str
+
+    if ConfigDict is not None:  # pragma: no branch - совместимость с Pydantic v2
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover - конфигурация для Pydantic v1
+
+        class Config:
+            allow_population_by_field_name = True
+
+    if model_validator is not None:  # pragma: no branch
+
+        @model_validator(mode="before")
+        @classmethod
+        def _normalize_input(cls, values: Any) -> Any:
+            if isinstance(values, Mapping):
+                return _normalize_case_insensitive(values)
+            return values
+
+    elif root_validator is not None:  # pragma: no cover - Pydantic v1
+
+        @root_validator(pre=True)
+        def _normalize_input(cls, values: Any) -> Any:  # type: ignore[override]
+            if isinstance(values, Mapping):
+                return _normalize_case_insensitive(values)
+            return values
+
+    @field_validator("css", mode="before")  # type: ignore[misc]
+    @classmethod
+    def _ensure_css(cls, value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value
+        return str(value)
+
+
 class UpdateModelTemplatesArgs(BaseModel):
     """Аргументы инструмента обновления шаблонов существующей модели."""
 

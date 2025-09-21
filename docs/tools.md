@@ -169,6 +169,37 @@
     совпадать с именем шаблона (`CardTemplateSpec.name`), а значения допускают как snake_case (`front`,
     `back`, `name`), так и привычные для AnkiConnect ключи (`Front`, `Back`, `Name`).
 
+### `UpdateModelStylingArgs`
+- **Используется в:** `anki.update_model_styling`.
+- **Поля:**
+  - `model_name: str` — имя модели, для которой следует обновить оформление.
+  - `css: str` — CSS-стили Anki. Значение приводится к строке, `null`/`None` превращается в пустую строку.
+
+#### Пример вызова `anki.update_model_styling`
+
+```json
+{
+  "name": "anki.update_model_styling",
+  "arguments": {
+    "model_name": "Поля для ChatGPT",
+    "css": ".card { font-family: 'Fira Code', monospace; }"
+  }
+}
+```
+
+Инструмент отправляет в AnkiConnect RPC `updateModelStyling` с полезной нагрузкой вида:
+
+```json
+{
+  "model": {
+    "name": "Поля для ChatGPT",
+    "styling": {
+      "css": ".card { font-family: 'Fira Code', monospace; }"
+    }
+  }
+}
+```
+
 ### `InvokeActionArgs`
 - **Используется в:** `anki.invoke`.
 - **Поля:**
