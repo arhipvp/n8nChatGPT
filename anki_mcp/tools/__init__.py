@@ -14,6 +14,7 @@ from .anki import (
     model_info,
     note_info,
     rename_deck,
+    update_model_templates,
     update_notes,
 )
 from .misc import greet
@@ -34,5 +35,6 @@ __all__ = [
     "model_info",
     "note_info",
     "rename_deck",
+    "update_model_templates",
     "update_notes",
 ]

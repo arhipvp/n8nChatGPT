@@ -23,6 +23,7 @@ from ..schemas import (
     CardTemplateSpec,
     CreateModelArgs,
     CreateModelResult,
+    UpdateModelTemplatesArgs,
     InvokeActionArgs,
     FindNotesArgs,
     FindNotesResponse,
@@ -155,6 +156,47 @@ async def create_model(
         options=extra_options,
         anki_response=anki_response,
     )
+
+
+@app.tool(name="anki.update_model_templates")
+async def update_model_templates(
+    args: Union[UpdateModelTemplatesArgs, Mapping[str, Any]]
+) -> Any:
+    if isinstance(args, UpdateModelTemplatesArgs):
+        normalized = args
+    else:
+        try:
+            normalized = model_validate(UpdateModelTemplatesArgs, args)
+        except Exception as exc:
+            raise ValueError(
+                f"Invalid update_model_templates arguments: {exc}"
+            ) from exc
+
+    templates_payload: Dict[str, Dict[str, str]] = {}
+    for key, template in normalized.templates.items():
+        template_name = template.name
+        if not template_name:
+            raise ValueError("Template name must be a non-empty string")
+        key_stripped = key.strip()
+        if key_stripped and key_stripped != template_name:
+            raise ValueError(
+                f"Template mapping key {key!r} must match template name {template_name!r}"
+            )
+        if template_name in templates_payload:
+            raise ValueError(f"Duplicate template definition for {template_name!r}")
+        templates_payload[template_name] = {
+            "Front": template.front,
+            "Back": template.back,
+        }
+
+    payload = {
+        "model": {
+            "name": normalized.model_name,
+            "templates": templates_payload,
+        }
+    }
+
+    return await anki_services.anki_call("updateModelTemplates", payload)
 
 
 @app.tool(name="anki.list_decks")
@@ -920,6 +962,7 @@ __all__ = [
     "add_from_model",
     "add_notes",
     "create_model",
+    "update_model_templates",
     "delete_decks",
     "delete_media",
     "delete_notes",

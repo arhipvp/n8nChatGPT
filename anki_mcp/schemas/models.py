@@ -144,6 +144,60 @@ class CreateModelArgs(BaseModel):
         raise TypeError("options must be a mapping of extra parameters")
 
 
+class UpdateModelTemplatesArgs(BaseModel):
+    """Аргументы инструмента обновления шаблонов существующей модели."""
+
+    model_name: constr(strip_whitespace=True, min_length=1)
+    templates: Dict[str, CardTemplateSpec] = Field(min_length=1)
+
+    if ConfigDict is not None:  # pragma: no branch
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover - конфигурация для Pydantic v1
+        class Config:
+            allow_population_by_field_name = True
+
+    if model_validator is not None:  # pragma: no branch
+
+        @model_validator(mode="before")
+        @classmethod
+        def _normalize_input(cls, values: Any) -> Any:
+            if isinstance(values, Mapping):
+                normalized = _normalize_case_insensitive(values)
+                card_templates = normalized.pop("card_templates", None)
+                if card_templates is not None and "templates" not in normalized:
+                    normalized["templates"] = card_templates
+                return normalized
+            return values
+
+    elif root_validator is not None:  # pragma: no cover - Pydantic v1
+
+        @root_validator(pre=True)
+        def _normalize_input(cls, values: Any) -> Any:  # type: ignore[override]
+            if isinstance(values, Mapping):
+                normalized = _normalize_case_insensitive(values)
+                card_templates = normalized.pop("card_templates", None)
+                if card_templates is not None and "templates" not in normalized:
+                    normalized["templates"] = card_templates
+                return normalized
+            return values
+
+    @field_validator("templates", mode="before")  # type: ignore[misc]
+    @classmethod
+    def _ensure_templates(cls, value: Any) -> Dict[str, Any]:
+        if value is None:
+            raise TypeError("templates must be a mapping of template names to specs")
+        if isinstance(value, Mapping):
+            return {str(key): val for key, val in value.items()}
+        if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
+            try:
+                return {str(key): val for key, val in value}
+            except (TypeError, ValueError):  # pragma: no cover - защитный код
+                raise TypeError(
+                    "templates must be a mapping of template names to specs"
+                ) from None
+        raise TypeError("templates must be a mapping of template names to specs")
+
+
 class CreateModelResult(BaseModel):
     """Результат вызова инструмента создания модели."""
 

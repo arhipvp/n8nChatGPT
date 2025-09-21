@@ -5,7 +5,12 @@ from .decks import DeleteDecksArgs, DeckInfo, ListDecksResponse, RenameDeckArgs
 from .images import ImageSpec
 from .media import DeleteMediaArgs as _DeleteMediaArgs
 from .media import MediaRequest, MediaResponse
-from .models import CardTemplateSpec, CreateModelArgs, CreateModelResult
+from .models import (
+    CardTemplateSpec,
+    CreateModelArgs,
+    CreateModelResult,
+    UpdateModelTemplatesArgs,
+)
 from .notes import (
     AddNotesArgs,
     AddNotesResult,
@@ -33,6 +38,7 @@ __all__ = [
     "CardTemplateSpec",
     "CreateModelArgs",
     "CreateModelResult",
+    "UpdateModelTemplatesArgs",
     "DeleteMediaArgs",
     "DeckInfo",
     "DeleteDecksArgs",

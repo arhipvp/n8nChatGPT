@@ -161,6 +161,14 @@
   - `options: Dict[str, Any]` — фактически переданные дополнительные параметры.
   - `anki_response: Any` — ответ AnkiConnect (обычно `null`, если ошибок не возникло).
 
+### `UpdateModelTemplatesArgs`
+- **Используется в:** `anki.update_model_templates`.
+- **Поля:**
+  - `model_name: str` — имя существующей модели Anki, шаблоны которой нужно изменить.
+  - `templates: Dict[str, CardTemplateSpec]` — новый набор шаблонов карточек. Ключ словаря должен
+    совпадать с именем шаблона (`CardTemplateSpec.name`), а значения допускают как snake_case (`front`,
+    `back`, `name`), так и привычные для AnkiConnect ключи (`Front`, `Back`, `Name`).
+
 ### `InvokeActionArgs`
 - **Используется в:** `anki.invoke`.
 - **Поля:**
@@ -357,6 +365,27 @@
     "isCloze": false
   },
   "anki_response": null
+}
+```
+
+### `anki.update_model_templates`
+- **Назначение:** обновить HTML-шаблоны карточек существующей модели Anki.
+- **Параметры:** объект `UpdateModelTemplatesArgs`. Допускаются алиасы `modelName` и `templates` в стиле AnkiConnect.
+- **Ответ:** «сырой» результат `updateModelTemplates` от AnkiConnect (обычно `null`).
+- **Пример запроса:**
+```json
+{
+  "name": "anki.update_model_templates",
+  "arguments": {
+    "modelName": "Поля для ChatGPT",
+    "templates": {
+      "Card 1": {
+        "name": "Card 1",
+        "front": "<div class=\"prompt\">{{Prompt}}</div>",
+        "back": "{{FrontSide}}\n<hr id=\"answer\">\n<div class=\"response\">{{Response}}</div>"
+      }
+    }
+  }
 }
 ```
 
