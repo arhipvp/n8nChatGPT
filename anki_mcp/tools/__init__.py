@@ -1,6 +1,13 @@
 """Пакет с MCP-инструментами."""
 
-from .anki import add_from_model, add_notes, find_notes, model_info, note_info
+from .anki import (
+    add_from_model,
+    add_notes,
+    find_notes,
+    model_info,
+    note_info,
+    update_notes,
+)
 from .misc import greet
 
 
@@ -11,4 +18,5 @@ __all__ = [
     "greet",
     "model_info",
     "note_info",
+    "update_notes",
 ]

@@ -16,9 +16,12 @@ from anki_mcp import (
     NoteInfoArgs,
     NoteInfoResponse,
     NoteInput,
+    NoteUpdate,
     SearchRequest,
     SearchResponse,
     SearchResult,
+    UpdateNotesArgs,
+    UpdateNotesResult,
     _build_manifest,
     _env_default,
     _env_optional,
@@ -33,7 +36,14 @@ from anki_mcp.actions import search
 from anki_mcp.manifest import _format_mcp_info
 from anki_mcp.services import anki as anki_services
 from anki_mcp.services import search as search_services
-from anki_mcp.tools import add_from_model, add_notes, find_notes, model_info, note_info
+from anki_mcp.tools import (
+    add_from_model,
+    add_notes,
+    find_notes,
+    model_info,
+    note_info,
+    update_notes,
+)
 from anki_mcp.tools.misc import greet
 
 _config.reload_from_env()
@@ -80,9 +90,12 @@ __all__ = [
     "NoteInfoArgs",
     "NoteInfoResponse",
     "NoteInput",
+    "NoteUpdate",
     "SearchRequest",
     "SearchResponse",
     "SearchResult",
+    "UpdateNotesArgs",
+    "UpdateNotesResult",
     "_build_manifest",
     "_env_default",
     "_env_optional",
@@ -113,4 +126,5 @@ __all__ = [
     "sanitize_image_payload",
     "search",
     "store_media_file",
+    "update_notes",
 ]

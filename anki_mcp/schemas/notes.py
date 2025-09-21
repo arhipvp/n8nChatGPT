@@ -160,6 +160,51 @@ class AddNotesResult(BaseModel):
     details: List[dict] = Field(default_factory=list)
 
 
+class NoteUpdate(BaseModel):
+    note_id: int = Field(alias="noteId")
+    fields: Optional[Dict[str, Any]] = None
+    add_tags: List[str] = Field(default_factory=list, alias="addTags")
+    remove_tags: List[str] = Field(default_factory=list, alias="removeTags")
+    deck: Optional[constr(strip_whitespace=True, min_length=1)] = Field(
+        default=None, alias="deckName"
+    )
+    images: List[ImageSpec] = Field(default_factory=list, alias="attachments")
+
+    if ConfigDict is not None:  # pragma: no branch
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover
+        class Config:
+            allow_population_by_field_name = True
+
+    if field_validator is not None:  # pragma: no branch
+
+        @field_validator("add_tags", mode="before")  # type: ignore[misc]
+        @classmethod
+        def _normalize_add_tags(cls, value):
+            return _normalize_note_input_tags(value)
+
+        @field_validator("remove_tags", mode="before")  # type: ignore[misc]
+        @classmethod
+        def _normalize_remove_tags(cls, value):
+            return _normalize_note_input_tags(value)
+
+    elif validator is not None:  # pragma: no cover
+
+        @validator("add_tags", "remove_tags", pre=True)  # type: ignore[misc]
+        def _normalize_tags(cls, value):  # type: ignore[override]
+            return _normalize_note_input_tags(value)
+
+
+class UpdateNotesArgs(BaseModel):
+    notes: List[NoteUpdate] = Field(min_length=1)
+
+
+class UpdateNotesResult(BaseModel):
+    updated: int
+    skipped: int
+    details: List[dict] = Field(default_factory=list)
+
+
 class NoteInfoArgs(BaseModel):
     note_ids: List[int] = Field(min_length=1, alias="noteIds")
 
