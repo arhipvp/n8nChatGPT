@@ -20,6 +20,7 @@ from ..schemas import (
     CardsToNotesResponse,
     CreateDeckArgs,
     DeckInfo,
+    DeckConfig,
     DeleteDecksArgs,
     DeleteMediaArgs,
     DeleteNotesArgs,
@@ -48,11 +49,21 @@ from ..schemas import (
     NoteInfoResponse,
     NoteInput,
     NoteUpdate,
+    GetDeckConfigArgs,
+    SaveDeckConfigArgs,
     RenameDeckArgs,
     UpdateNotesArgs,
     UpdateNotesResult,
 )
 from ..services import anki as anki_services
+
+
+def _model_dump(instance: Any, *, by_alias: bool = False, exclude_none: bool = False) -> Dict[str, Any]:
+    if hasattr(instance, "model_dump"):
+        return instance.model_dump(by_alias=by_alias, exclude_none=exclude_none)
+    if hasattr(instance, "dict"):
+        return instance.dict(by_alias=by_alias, exclude_none=exclude_none)
+    raise TypeError("instance must be a Pydantic model")
 
 
 def _normalize_template(template: CardTemplateSpec) -> Dict[str, str]:
@@ -409,6 +420,71 @@ async def create_deck(
 
     payload = {"deck": normalized.deck}
     return await anki_services.anki_call("createDeck", payload)
+
+
+@app.tool(name="anki.get_deck_config")
+async def get_deck_config(
+    args: Union[GetDeckConfigArgs, Mapping[str, Any]]
+) -> DeckConfig:
+    if isinstance(args, GetDeckConfigArgs):
+        normalized = args
+    else:
+        try:
+            normalized = model_validate(GetDeckConfigArgs, args)
+        except Exception as exc:
+            raise ValueError(f"Invalid get_deck_config arguments: {exc}") from exc
+
+    payload = {"deck": normalized.deck}
+    raw_config = await anki_services.anki_call("getDeckConfig", payload)
+
+    try:
+        return model_validate(DeckConfig, raw_config)
+    except Exception as exc:  # pragma: no cover - depends on validation paths
+        raise ValueError(f"Invalid getDeckConfig response: {exc}") from exc
+
+
+@app.tool(name="anki.save_deck_config")
+async def save_deck_config(
+    args: Union[SaveDeckConfigArgs, Mapping[str, Any]]
+) -> Mapping[str, Any]:
+    if isinstance(args, SaveDeckConfigArgs):
+        normalized = args
+    else:
+        try:
+            normalized = model_validate(SaveDeckConfigArgs, args)
+        except Exception as exc:
+            raise ValueError(f"Invalid save_deck_config arguments: {exc}") from exc
+
+    config_payload = _model_dump(
+        normalized.config, by_alias=True, exclude_none=True
+    )
+    save_result = await anki_services.anki_call(
+        "saveDeckConfig", {"config": config_payload}
+    )
+
+    response: Dict[str, Any] = {
+        "save_result": save_result,
+    }
+
+    config_id = normalized.config.id
+    if config_id is not None:
+        response["configId"] = config_id
+
+    deck_name = normalized.deck
+    if deck_name:
+        if config_id is None:
+            raise ValueError(
+                "Deck config must include id to be assigned to a deck"
+            )
+
+        set_payload = {"deck": deck_name, "configId": config_id}
+        set_result = await anki_services.anki_call("setDeckConfigId", set_payload)
+        response.update({
+            "deck": deck_name,
+            "set_result": set_result,
+        })
+
+    return response
 
 
 @app.tool(name="anki.rename_deck")
