@@ -63,6 +63,27 @@ def test_package_exports_follow_reload():
         anki_mcp.config.reload_from_env()
 
 
+def test_server_exports_follow_reload():
+    import anki_mcp
+
+    original_deck = os.environ.get("ANKI_DEFAULT_DECK")
+    original_model = os.environ.get("ANKI_DEFAULT_MODEL")
+
+    try:
+        os.environ["ANKI_DEFAULT_DECK"] = "ServerDeck"
+        os.environ["ANKI_DEFAULT_MODEL"] = "ServerModel"
+        anki_mcp.config.reload_from_env()
+
+        assert server.DEFAULT_DECK == "ServerDeck"
+        assert server.ENVIRONMENT_INFO == {
+            "defaultDeck": "ServerDeck",
+            "defaultModel": "ServerModel",
+        }
+    finally:
+        _restore_env(original_deck, original_model)
+        anki_mcp.config.reload_from_env()
+
+
 @pytest.mark.anyio
 async def test_manifest_environment_contains_defaults():
     original_deck = os.environ.get("ANKI_DEFAULT_DECK")
