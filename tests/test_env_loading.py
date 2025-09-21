@@ -61,6 +61,7 @@ def test_env_loaded_from_script_directory(tmp_path, monkeypatch):
 
     try:
         importlib.reload(main)
+        main.main(["--no-run"])
         assert os.environ["NGROK_AUTHTOKEN"] == "from_test"
     finally:
         if backup is None:

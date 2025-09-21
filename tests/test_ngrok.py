@@ -1,27 +1,6 @@
-import sys
 import types
-from pathlib import Path
-from unittest.mock import patch
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-if "requests" not in sys.modules:
-    requests_stub = types.ModuleType("requests")
-    requests_stub.get = lambda *args, **kwargs: None
-    sys.modules["requests"] = requests_stub
-
-if "dotenv" not in sys.modules:
-    dotenv_stub = types.ModuleType("dotenv")
-
-    def _load_dotenv(*_args, **_kwargs):  # pragma: no cover - простая заглушка
-        return False
-
-    dotenv_stub.load_dotenv = _load_dotenv
-    sys.modules["dotenv"] = dotenv_stub
-
-import main
+import runtime
 
 
 class DummyResponse:
@@ -46,8 +25,13 @@ def _make_tunnel(addr):
 
 def _run_with_addr(addr):
     response = DummyResponse([_make_tunnel(addr)])
-    with patch.object(main.requests, "get", return_value=response):
-        return main.get_ngrok_url(timeout=0.1)
+    requests_stub = types.SimpleNamespace(get=lambda *args, **kwargs: response)
+    tunnel = runtime.NgrokTunnel(
+        port=runtime.PORT,
+        root=runtime.ROOT,
+        requests_module=requests_stub,
+    )
+    return tunnel.get_public_url(timeout=0.1)
 
 
 def test_get_ngrok_url_accepts_ipv4_loopback():
@@ -72,9 +56,9 @@ def test_find_ngrok_exe_uses_root_when_cwd_changes(tmp_path, monkeypatch):
     exe = project_dir / "ngrok.exe"
     exe.write_text("dummy")
 
-    monkeypatch.setattr(main, "ROOT", project_dir)
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
 
-    assert main.find_ngrok_exe() == str(exe)
+    tunnel = runtime.NgrokTunnel(port=runtime.PORT, root=project_dir)
+    assert tunnel.find_executable() == str(exe)
