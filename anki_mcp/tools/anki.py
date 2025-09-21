@@ -11,6 +11,8 @@ from .. import config
 from ..schemas import (
     AddNotesArgs,
     AddNotesResult,
+    DeckInfo,
+    DeleteDecksArgs,
     DeleteNotesArgs,
     DeleteNotesResult,
     CardTemplateSpec,
@@ -19,6 +21,7 @@ from ..schemas import (
     InvokeActionArgs,
     FindNotesArgs,
     FindNotesResponse,
+    ListDecksResponse,
     ModelInfo,
     NOTE_RESERVED_TOP_LEVEL_KEYS,
     NoteInfo,
@@ -26,6 +29,7 @@ from ..schemas import (
     NoteInfoResponse,
     NoteInput,
     NoteUpdate,
+    RenameDeckArgs,
     UpdateNotesArgs,
     UpdateNotesResult,
 )
@@ -121,6 +125,51 @@ async def create_model(
         options=extra_options,
         anki_response=anki_response,
     )
+
+
+@app.tool(name="anki.list_decks")
+async def list_decks() -> List[DeckInfo]:
+    raw_decks = await anki_services.anki_call("deckNamesAndIds", {})
+
+    if raw_decks is None:
+        return []
+
+    if not isinstance(raw_decks, Mapping):
+        raise ValueError("deckNamesAndIds response must be a mapping of deck names to ids")
+
+    deck_infos: List[DeckInfo] = []
+    for name, deck_id in raw_decks.items():
+        if not isinstance(name, str):
+            raise ValueError(f"deckNamesAndIds returned invalid deck name: {name!r}")
+
+        if isinstance(deck_id, bool):
+            raise ValueError(
+                f"deckNamesAndIds returned non-integer deck id for {name!r}: {deck_id!r}"
+            )
+
+        try:
+            normalized_id = int(deck_id)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"deckNamesAndIds returned non-integer deck id for {name!r}: {deck_id!r}"
+            ) from None
+
+        deck_infos.append(DeckInfo(id=normalized_id, name=name))
+
+    response = ListDecksResponse(decks=deck_infos)
+    return response.decks
+
+
+@app.tool(name="anki.rename_deck")
+async def rename_deck(args: RenameDeckArgs):
+    payload = {"oldName": args.old_name, "newName": args.new_name}
+    return await anki_services.anki_call("renameDeck", payload)
+
+
+@app.tool(name="anki.delete_decks")
+async def delete_decks(args: DeleteDecksArgs):
+    payload = {"decks": list(args.decks), "cardsToo": bool(args.cards_too)}
+    return await anki_services.anki_call("deleteDecks", payload)
 
 
 @app.tool(name="anki.find_notes")

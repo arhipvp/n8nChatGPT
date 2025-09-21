@@ -1,6 +1,7 @@
 """Публичный интерфейс схем MCP-сервера."""
 
 from .actions import InvokeActionArgs
+from .decks import DeleteDecksArgs, DeckInfo, ListDecksResponse, RenameDeckArgs
 from .images import ImageSpec
 from .models import CardTemplateSpec, CreateModelArgs, CreateModelResult
 from .notes import (
@@ -27,9 +28,12 @@ __all__ = [
     "CardTemplateSpec",
     "CreateModelArgs",
     "CreateModelResult",
+    "DeckInfo",
+    "DeleteDecksArgs",
     "InvokeActionArgs",
     "AddNotesArgs",
     "AddNotesResult",
+    "ListDecksResponse",
     "DeleteNotesArgs",
     "DeleteNotesResult",
     "FindNotesArgs",
@@ -42,6 +46,7 @@ __all__ = [
     "NoteInfoResponse",
     "NoteInput",
     "NoteUpdate",
+    "RenameDeckArgs",
     "SearchRequest",
     "SearchResponse",
     "SearchResult",
