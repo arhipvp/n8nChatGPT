@@ -19,6 +19,8 @@ from ..schemas import (
     DeleteMediaArgs,
     DeleteNotesArgs,
     DeleteNotesResult,
+    FindCardsArgs,
+    FindCardsResponse,
     MediaRequest,
     MediaResponse,
     StoreMediaArgs,
@@ -363,6 +365,47 @@ async def find_notes(args: FindNotesArgs) -> FindNotesResponse:
         notes = anki_services.normalize_notes_info(raw_notes)
 
     return FindNotesResponse(note_ids=normalized_ids, notes=notes)
+
+
+@app.tool(name="anki.find_cards")
+async def find_cards(
+    args: Union[FindCardsArgs, Mapping[str, Any]]
+) -> FindCardsResponse:
+    if isinstance(args, FindCardsArgs):
+        normalized = args
+    else:
+        try:
+            normalized = model_validate(FindCardsArgs, args)
+        except Exception as exc:
+            raise ValueError(f"Invalid find_cards arguments: {exc}") from exc
+
+    raw_card_ids = await anki_services.anki_call(
+        "findCards", {"query": normalized.query}
+    )
+    if not isinstance(raw_card_ids, list):
+        raise ValueError("findCards response must be a list of card ids")
+
+    normalized_ids: List[int] = []
+    for index, raw_id in enumerate(raw_card_ids):
+        if isinstance(raw_id, bool):
+            raise ValueError(
+                f"findCards returned non-integer value at index {index}: {raw_id!r}"
+            )
+        try:
+            card_id = int(raw_id)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"findCards returned non-integer value at index {index}: {raw_id!r}"
+            ) from None
+        normalized_ids.append(card_id)
+
+    offset = normalized.offset or 0
+    if offset:
+        normalized_ids = normalized_ids[offset:]
+    if normalized.limit is not None:
+        normalized_ids = normalized_ids[: normalized.limit]
+
+    return FindCardsResponse(card_ids=normalized_ids)
 
 
 @app.tool(name="anki.get_media")

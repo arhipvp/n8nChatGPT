@@ -23,6 +23,8 @@ from .models import (
 from .notes import (
     AddNotesArgs,
     AddNotesResult,
+    FindCardsArgs,
+    FindCardsResponse,
     DeleteNotesArgs,
     DeleteNotesResult,
     FindNotesArgs,
@@ -64,6 +66,8 @@ __all__ = [
     "ListDecksResponse",
     "DeleteNotesArgs",
     "DeleteNotesResult",
+    "FindCardsArgs",
+    "FindCardsResponse",
     "FindNotesArgs",
     "FindNotesResponse",
     "ImageSpec",
