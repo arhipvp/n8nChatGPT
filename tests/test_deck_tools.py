@@ -111,7 +111,7 @@ def test_list_decks_normalizes_response(monkeypatch):
         assert params == {}
         return {"Default": 1, "Custom": "1700000000000"}
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     list_decks_fn = _unwrap_tool(list_decks)
     result = asyncio.run(list_decks_fn())
@@ -127,7 +127,7 @@ def test_list_decks_handles_empty_mapping(monkeypatch):
         assert params == {}
         return {}
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     list_decks_fn = _unwrap_tool(list_decks)
     result = asyncio.run(list_decks_fn())
@@ -144,7 +144,7 @@ def test_rename_deck_payload(monkeypatch):
         assert params == {"oldName": "Inbox", "newName": "Archive"}
         return "ok"
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     rename_deck_fn = _unwrap_tool(rename_deck)
     args = RenameDeckArgs(old_name="Inbox", new_name="Archive")
@@ -163,7 +163,7 @@ def test_delete_decks_payload(monkeypatch):
         assert params == {"decks": ["Inbox", "Temp"], "cardsToo": True}
         return None
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     delete_decks_fn = _unwrap_tool(delete_decks)
     args = DeleteDecksArgs(decks=["Inbox", "Temp"], cards_too=True)

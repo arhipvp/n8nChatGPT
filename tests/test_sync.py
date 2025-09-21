@@ -60,7 +60,7 @@ async def test_sync_invokes_rpc_and_normalizes_none(monkeypatch):
         calls.append((action, params))
         return None
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     result = await _unwrap(sync)()
 
@@ -75,7 +75,7 @@ async def test_sync_wraps_boolean_result(monkeypatch):
         assert params == {}
         return False
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     result = await _unwrap(sync)()
 
@@ -87,7 +87,7 @@ async def test_sync_converts_invalid_params_error(monkeypatch):
     async def fake_anki_call(action, params):
         raise RuntimeError("Anki error: invalid auth token")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     with pytest.raises(ValueError, match="invalid auth token"):
         await _unwrap(sync)()
@@ -98,7 +98,7 @@ async def test_sync_preserves_system_errors(monkeypatch):
     async def fake_anki_call(action, params):
         raise RuntimeError("Anki error: collection is locked")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     with pytest.raises(RuntimeError, match="collection is locked"):
         await _unwrap(sync)()

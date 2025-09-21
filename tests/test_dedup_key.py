@@ -59,7 +59,7 @@ async def test_add_from_model_includes_dedup_key(monkeypatch):
             return [101, None]
         raise AssertionError(f"Unexpected action: {action}")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     items = [
         NoteInput(fields={"Front": "Q1", "Back": "A1"}, dedup_key="first"),
@@ -91,7 +91,7 @@ async def test_add_notes_includes_dedup_key(monkeypatch):
             return [202, None]
         raise AssertionError(f"Unexpected action: {action}")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     args = AddNotesArgs(
         deck="Deck",
@@ -127,7 +127,7 @@ async def test_add_notes_lowercase_fields_empty_front(monkeypatch):
             raise AssertionError("addNotes should not be called when fields invalid")
         raise AssertionError(f"Unexpected action: {action}")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     args = AddNotesArgs(
         deck="Deck",

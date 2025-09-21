@@ -68,8 +68,13 @@ from anki_mcp import (
 from anki_mcp import config as _config
 from anki_mcp.actions import search
 from anki_mcp.manifest import _format_mcp_info
-from anki_mcp.services import anki as anki_services
-from anki_mcp.services import search as search_services
+from anki_mcp.services import (
+    anki as anki_services,
+    client as client_services,
+    media as media_services,
+    notes as notes_services,
+    search as search_services,
+)
 from anki_mcp.tools import (
     add_from_model,
     add_notes,
@@ -125,17 +130,22 @@ def __dir__():
 # Обеспечиваем доступ к httpx для тестовых заглушек.
 httpx = search_services.httpx
 
+# Переэкспорт специализированных сервисов.
+anki_client = client_services
+anki_media = media_services
+anki_notes = notes_services
+
 # Переэкспорт сервисных функций, если они использовались напрямую.
-anki_call = anki_services.anki_call
-store_media_file = anki_services.store_media_file
-fetch_image_as_base64 = anki_services.fetch_image_as_base64
-normalize_fields_for_model = anki_services.normalize_fields_for_model
-normalize_and_validate_note_fields = anki_services.normalize_and_validate_note_fields
-process_data_urls_in_fields = anki_services.process_data_urls_in_fields
-sanitize_image_payload = anki_services.sanitize_image_payload
-ensure_img_tag = anki_services.ensure_img_tag
-build_img_tag = anki_services.build_img_tag
-normalize_notes_info = anki_services.normalize_notes_info
+anki_call = client_services.anki_call
+store_media_file = client_services.store_media_file
+fetch_image_as_base64 = media_services.fetch_image_as_base64
+normalize_fields_for_model = notes_services.normalize_fields_for_model
+normalize_and_validate_note_fields = notes_services.normalize_and_validate_note_fields
+process_data_urls_in_fields = media_services.process_data_urls_in_fields
+sanitize_image_payload = media_services.sanitize_image_payload
+ensure_img_tag = media_services.ensure_img_tag
+build_img_tag = media_services.build_img_tag
+normalize_notes_info = notes_services.normalize_notes_info
 get_model_fields_templates = anki_services.get_model_fields_templates
 get_model_field_names = anki_services.get_model_field_names
 
@@ -220,6 +230,9 @@ __all__ = [
     "save_deck_config",
     "invoke_action",
     "sync",
+    "anki_client",
+    "anki_media",
+    "anki_notes",
     "anki_call",
     "app",
     "uuid",

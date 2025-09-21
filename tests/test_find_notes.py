@@ -119,7 +119,7 @@ def test_find_notes_with_limit_and_offset(monkeypatch):
             ]
         raise AssertionError(f"Unexpected call: {action}")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     args = FindNotesArgs(query="deck:Default", limit=2, offset=1)
     find_notes_fn = getattr(find_notes, "fn", find_notes)
@@ -140,7 +140,7 @@ def test_find_notes_without_results(monkeypatch):
         assert action == "findNotes"
         return []
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     args = FindNotesArgs(query="deck:Empty")
     find_notes_fn = getattr(find_notes, "fn", find_notes)
@@ -155,7 +155,7 @@ def test_find_notes_rejects_invalid_response(monkeypatch):
     async def fake_anki_call(action, params):
         return "oops"
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     find_notes_fn = getattr(find_notes, "fn", find_notes)
 

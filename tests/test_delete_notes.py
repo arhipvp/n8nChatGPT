@@ -57,7 +57,7 @@ async def test_delete_notes_calls_anki_and_handles_none(monkeypatch):
         assert action == "deleteNotes"
         return None
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     args = DeleteNotesArgs(noteIds=[1, 2, 3])
     delete_fn = getattr(delete_notes, "fn", delete_notes)
@@ -75,7 +75,7 @@ async def test_delete_notes_normalizes_list_response(monkeypatch):
         assert params == {"notes": [10, 20, 30, 40, 50]}
         return [True, False, None, {"status": "missing"}, {"status": "ok"}]
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     args = DeleteNotesArgs(noteIds=[10, 20, 30, 40, 50])
     delete_fn = getattr(delete_notes, "fn", delete_notes)
@@ -92,7 +92,7 @@ async def test_delete_notes_handles_mapping_counts(monkeypatch):
         assert params == {"notes": [7, 8, 9, 10]}
         return {"deleted": 3, "missing": 1}
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     args = DeleteNotesArgs(noteIds=[7, 8, 9, 10])
     delete_fn = getattr(delete_notes, "fn", delete_notes)

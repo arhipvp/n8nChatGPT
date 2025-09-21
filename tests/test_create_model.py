@@ -65,7 +65,7 @@ async def test_create_model_payload(monkeypatch):
         captured["params"] = params
         return {"created": True}
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     args = CreateModelArgs(
         model_name="Custom QA",
@@ -116,7 +116,7 @@ async def test_create_model_rejects_reserved_option(monkeypatch):
     async def fake_anki_call(action, params):  # pragma: no cover - should not be called
         raise AssertionError("anki_call must not be invoked on invalid input")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     with pytest.raises(ValueError) as exc:
         await _unwrap(create_model)(
@@ -136,7 +136,7 @@ async def test_create_model_conflicting_is_cloze(monkeypatch):
     async def fake_anki_call(action, params):  # pragma: no cover - should not run
         raise AssertionError("anki_call should not be used when validation fails")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     with pytest.raises(ValueError) as exc:
         await _unwrap(create_model)(

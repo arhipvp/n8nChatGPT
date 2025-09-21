@@ -65,7 +65,7 @@ async def test_update_model_templates_payload(monkeypatch):
         captured["params"] = params
         return {"updated": True}
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     args = UpdateModelTemplatesArgs(
         model_name="Поля для ChatGPT",
@@ -100,7 +100,7 @@ async def test_update_model_templates_rejects_mismatched_names(monkeypatch):
     async def fake_anki_call(action, params):  # pragma: no cover - should not run
         raise AssertionError("anki_call must not be invoked on invalid input")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     args = UpdateModelTemplatesArgs(
         model_name="Поля для ChatGPT",
@@ -128,7 +128,7 @@ async def test_update_model_templates_accepts_mappings(monkeypatch):
         captured["params"] = params
         return None
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     payload = {
         "modelName": "Custom QA",
@@ -167,7 +167,7 @@ async def test_update_model_templates_accepts_model_info_payload(monkeypatch):
         captured["params"] = params
         return {"ok": True}
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     payload = {
         "modelName": "Custom QA",
@@ -201,7 +201,7 @@ async def test_update_model_templates_rejects_conflicting_name(monkeypatch):
     async def fake_anki_call(action, params):  # pragma: no cover - should not run
         raise AssertionError("anki_call must not be invoked on invalid input")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     payload = {
         "modelName": "Custom QA",

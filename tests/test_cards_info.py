@@ -123,7 +123,7 @@ def test_cards_info_normalizes_payload(monkeypatch):
             }
         ]
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     cards_info_fn = getattr(cards_info, "fn", cards_info)
     result = asyncio.run(cards_info_fn(CardsInfoArgs(card_ids=[111, 222])))
@@ -146,7 +146,7 @@ def test_cards_info_rejects_invalid_entry(monkeypatch):
         assert action == "cardsInfo"
         return [None]
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     cards_info_fn = getattr(cards_info, "fn", cards_info)
 

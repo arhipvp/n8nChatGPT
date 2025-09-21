@@ -60,7 +60,7 @@ def test_list_tags_normalizes_and_sorts(monkeypatch):
         assert params == {}
         return [" travel ", "English", "Pronunciation", "english", "Travel"]
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     list_tags_fn = _unwrap_tool(list_tags)
     result = asyncio.run(list_tags_fn())
@@ -76,7 +76,7 @@ def test_list_tags_invalid_payload(monkeypatch):
         assert params == {}
         return {"not": "a list"}
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     list_tags_fn = _unwrap_tool(list_tags)
 

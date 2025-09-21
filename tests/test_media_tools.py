@@ -63,7 +63,7 @@ async def test_get_media_returns_payload(monkeypatch):
         assert params == {"filename": "sound.wav"}
         return payload
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     args = MediaRequest(filename="sound.wav")
     result = await _unwrap(get_media)(args)
@@ -78,7 +78,7 @@ async def test_get_media_raises_file_not_found(monkeypatch):
     async def fake_anki_call(action, params):
         raise RuntimeError("Media file not found")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     with pytest.raises(FileNotFoundError):
         await _unwrap(get_media)(MediaRequest(filename="missing.png"))
@@ -91,7 +91,7 @@ async def test_delete_media_reports_status(monkeypatch):
         assert params == {"filename": "audio/hello.mp3"}
         return None
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     result = await _unwrap(delete_media)(DeleteMediaArgs(filename="audio/hello.mp3"))
 
@@ -109,7 +109,7 @@ async def test_delete_media_handles_partial_failures(monkeypatch):
         assert params == {"filename": "batch.bin"}
         return [True, False, None]
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     result = await _unwrap(delete_media)(DeleteMediaArgs(filename="batch.bin"))
 
@@ -123,7 +123,7 @@ async def test_delete_media_raises_file_not_found(monkeypatch):
     async def fake_anki_call(action, params):
         raise RuntimeError("No such file or directory")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     with pytest.raises(FileNotFoundError):
         await _unwrap(delete_media)(DeleteMediaArgs(filename="ghost.jpg"))

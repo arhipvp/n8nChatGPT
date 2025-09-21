@@ -64,7 +64,7 @@ async def test_store_media_accepts_aliases(monkeypatch):
         return {"stored": True}
 
     monkeypatch.setattr(
-        "anki_mcp.services.anki.store_media_file", fake_store_media_file
+        "anki_mcp.services.client.store_media_file", fake_store_media_file
     )
 
     args = {"filename": "audio/test.mp3", "data": encoded}
@@ -81,7 +81,7 @@ async def test_store_media_rejects_invalid_base64(monkeypatch):
         pytest.fail("store_media_file не должен вызываться для некорректного Base64")
 
     monkeypatch.setattr(
-        "anki_mcp.services.anki.store_media_file", fail_store_media_file
+        "anki_mcp.services.client.store_media_file", fail_store_media_file
     )
 
     with pytest.raises(ValueError):
@@ -98,7 +98,7 @@ async def test_store_media_propagates_service_errors(monkeypatch):
         raise RuntimeError("AnkiConnect unavailable")
 
     monkeypatch.setattr(
-        "anki_mcp.services.anki.store_media_file", fake_store_media_file
+        "anki_mcp.services.client.store_media_file", fake_store_media_file
     )
 
     with pytest.raises(RuntimeError):

@@ -113,7 +113,7 @@ def test_note_info_normalizes_payload(monkeypatch):
             None,
         ]
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     args = NoteInfoArgs(note_ids=[111, 222])
     note_info_fn = getattr(note_info, "fn", note_info)
@@ -144,7 +144,7 @@ def test_note_info_propagates_errors(monkeypatch):
     async def fake_anki_call(action, params):
         raise RuntimeError("notesInfo failed")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     with pytest.raises(RuntimeError):
         note_info_fn = getattr(note_info, "fn", note_info)
