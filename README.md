@@ -63,6 +63,8 @@
 - `anki.create_deck` — создаёт новую колоду или возвращает уже существующую. [Подробнее](docs/tools.md#ankicreate_deck)
 - `anki.rename_deck` — переименовывает колоду, если нужно изменить структуру дерева. [Подробнее](docs/tools.md#ankirename_deck)
 - `anki.delete_decks` — удаляет колоды (с возможностью очистить дочерние). [Подробнее](docs/tools.md#ankidelete_decks)
+- `anki.get_deck_config` — возвращает текущую конфигурацию выбранной колоды. [Подробнее](docs/tools.md#ankiget_deck_config)
+- `anki.save_deck_config` — сохраняет изменённый профиль настроек для колоды. [Подробнее](docs/tools.md#ankisave_deck_config)
 
 **Модели**
 - `anki.model_info` — выводит структуру модели: поля, шаблоны карточек и CSS. [Подробнее](docs/tools.md#ankimodel_info)
