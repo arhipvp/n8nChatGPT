@@ -14,6 +14,7 @@ from .. import config
 from ..schemas import (
     AddNotesArgs,
     AddNotesResult,
+    CardIdsArgs,
     CardInfo,
     CardsInfoArgs,
     CardsToNotesArgs,
@@ -97,6 +98,48 @@ def _calculate_media_size(data_base64: str) -> Optional[int]:
         except Exception:
             return None
     return len(raw)
+
+
+def _normalize_card_ids_args(
+    args: Union[CardIdsArgs, Mapping[str, Any]]
+) -> CardIdsArgs:
+    if isinstance(args, CardIdsArgs):
+        return args
+    if isinstance(args, Mapping):
+        try:
+            return model_validate(CardIdsArgs, args)
+        except Exception as exc:
+            raise ValueError(f"Invalid card identifiers: {exc}") from exc
+    raise TypeError(
+        "Arguments must be CardIdsArgs or a mapping with the field 'cardIds'"
+    )
+
+
+def _wrap_cards_action_error(exc: RuntimeError, *, suspended: bool) -> RuntimeError:
+    detail = str(exc)
+    if detail.lower().startswith("anki error:"):
+        detail = detail.split(":", 1)[1].strip() or detail
+    verb = "скрыть" if suspended else "вернуть"
+    return RuntimeError(f"Не удалось {verb} карточки Anki: {detail}")
+
+
+async def _call_cards_action(
+    action: str,
+    args: Union[CardIdsArgs, Mapping[str, Any]],
+    *,
+    suspended: bool,
+) -> Dict[str, Any]:
+    normalized = _normalize_card_ids_args(args)
+    payload = {"cards": normalized.card_ids}
+    try:
+        response = await anki_services.anki_call(action, payload)
+    except RuntimeError as exc:
+        raise _wrap_cards_action_error(exc, suspended=suspended) from exc
+    return {
+        "card_ids": normalized.card_ids,
+        "suspended": suspended,
+        "anki_response": response,
+    }
 
 
 @app.tool(name="anki.invoke")
@@ -682,6 +725,20 @@ async def cards_to_notes(
         )
     except Exception as exc:  # pragma: no cover - should not trigger with sanitized mapping
         raise ValueError(f"cardsToNotes response could not be validated: {exc}") from exc
+
+
+@app.tool(name="anki.suspend_cards")
+async def suspend_cards(
+    args: Union[CardIdsArgs, Mapping[str, Any]]
+) -> Dict[str, Any]:
+    return await _call_cards_action("suspendCards", args, suspended=True)
+
+
+@app.tool(name="anki.unsuspend_cards")
+async def unsuspend_cards(
+    args: Union[CardIdsArgs, Mapping[str, Any]]
+) -> Dict[str, Any]:
+    return await _call_cards_action("unsuspendCards", args, suspended=False)
 
 
 @app.tool(name="anki.get_media")

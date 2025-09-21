@@ -135,7 +135,9 @@ def _normalize_cards_to_notes(value: Any) -> Dict[int, int]:
     return normalized
 
 
-class CardsInfoArgs(BaseModel):
+class CardIdsArgs(BaseModel):
+    """Базовая схема аргументов, содержащая список идентификаторов карточек."""
+
     card_ids: List[int] = Field(alias="cardIds", min_length=1)
 
     if ConfigDict is not None:  # pragma: no branch - поддержка Pydantic v2
@@ -158,27 +160,12 @@ class CardsInfoArgs(BaseModel):
             return list(_normalize_card_ids(value))
 
 
-class CardsToNotesArgs(BaseModel):
-    card_ids: List[int] = Field(alias="cardIds", min_length=1)
+class CardsInfoArgs(CardIdsArgs):
+    """Аргументы для инструмента `cardsInfo`."""
 
-    if ConfigDict is not None:  # pragma: no branch - поддержка Pydantic v2
-        model_config = ConfigDict(populate_by_name=True)
-    else:  # pragma: no cover - fallback для Pydantic v1
-        class Config:
-            allow_population_by_field_name = True
 
-    if field_validator is not None:  # pragma: no branch - зависит от версии Pydantic
-
-        @field_validator("card_ids", mode="before")  # type: ignore[misc]
-        @classmethod
-        def _normalize_ids(cls, value: Any) -> List[int]:
-            return _normalize_card_ids(value)
-
-    elif validator is not None:  # pragma: no cover - Pydantic v1 fallback
-
-        @validator("card_ids", pre=True)  # type: ignore[misc]
-        def _normalize_ids(cls, value):  # type: ignore[override]
-            return list(_normalize_card_ids(value))
+class CardsToNotesArgs(CardIdsArgs):
+    """Аргументы для инструмента `cardsToNotes`."""
 
 
 class CardInfo(BaseModel):
@@ -266,4 +253,10 @@ class CardsToNotesResponse(BaseModel):
             return dict(_normalize_cards_to_notes(value))
 
 
-__all__ = ["CardInfo", "CardsInfoArgs", "CardsToNotesArgs", "CardsToNotesResponse"]
+__all__ = [
+    "CardIdsArgs",
+    "CardInfo",
+    "CardsInfoArgs",
+    "CardsToNotesArgs",
+    "CardsToNotesResponse",
+]
