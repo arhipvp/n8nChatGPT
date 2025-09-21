@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fastmcp import FastMCP
 
 
@@ -14,16 +16,18 @@ if not hasattr(app, "action"):
 
 from . import actions  # noqa: E402 - регистрация действий
 from . import tools  # noqa: E402 - регистрация инструментов
-from .config import (
-    ANKI_URL,
-    DEFAULT_DECK,
-    DEFAULT_MODEL,
-    ENVIRONMENT_INFO,
-    SEARCH_API_KEY,
-    SEARCH_API_URL,
-    _env_default,
-    _env_optional,
-)
+from . import config as _config
+from .config import _env_default, _env_optional
+
+if TYPE_CHECKING:  # pragma: no cover - подсказки типов при статическом анализе
+    from .config import (
+        ANKI_URL,
+        DEFAULT_DECK,
+        DEFAULT_MODEL,
+        ENVIRONMENT_INFO,
+        SEARCH_API_KEY,
+        SEARCH_API_URL,
+    )
 from .manifest import (
     _build_manifest,
     _manifest_response,
@@ -85,3 +89,23 @@ __all__ = [
     "read_root",
     "read_well_known_manifest",
 ]
+
+
+_CONFIG_EXPORTS = {
+    "DEFAULT_DECK",
+    "DEFAULT_MODEL",
+    "ENVIRONMENT_INFO",
+    "SEARCH_API_URL",
+    "SEARCH_API_KEY",
+    "ANKI_URL",
+}
+
+
+def __getattr__(name: str):
+    if name in _CONFIG_EXPORTS:
+        return getattr(_config, name)
+    raise AttributeError(f"module 'anki_mcp' has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(set(globals()) | _CONFIG_EXPORTS)
