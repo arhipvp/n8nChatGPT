@@ -41,9 +41,11 @@ from .notes import (
     UpdateNotesResult,
 )
 from .search import SearchRequest, SearchResponse, SearchResult
+from .tags import ListTagsResponse as _ListTagsResponse, TagsList
 
 
 DeleteMediaArgs = _DeleteMediaArgs
+ListTagsResponse = _ListTagsResponse
 
 
 __all__ = [
@@ -74,6 +76,7 @@ __all__ = [
     "FindNotesArgs",
     "FindNotesResponse",
     "ImageSpec",
+    "ListTagsResponse",
     "ModelInfo",
     "NOTE_RESERVED_TOP_LEVEL_KEYS",
     "NoteInfo",
@@ -85,6 +88,7 @@ __all__ = [
     "SearchRequest",
     "SearchResponse",
     "SearchResult",
+    "TagsList",
     "UpdateNotesArgs",
     "UpdateNotesResult",
 ]
