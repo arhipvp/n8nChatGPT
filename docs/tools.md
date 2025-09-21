@@ -467,6 +467,19 @@
   - AnkiConnect вернёт ошибку, если модель не существует или в шаблоне CSS есть синтаксические ошибки, которые Anki не может обработать.
   - Убедитесь, что в CSS экранированы кавычки и обратные слэши, если запрос формируется вручную.
 
+Инструмент отправляет в AnkiConnect RPC `updateModelStyling` с полезной нагрузкой вида:
+
+```json
+{
+  "model": {
+    "name": "Поля для ChatGPT",
+    "styling": {
+      "css": ".card { font-family: 'Fira Code', monospace; }"
+    }
+  }
+}
+```
+
 #### Пример запроса
 
 ```json
@@ -503,19 +516,6 @@
     { "id": 5, "name": "Basic (and reversed card)" },
     { "id": 8, "name": "Cloze" }
   ]
-}
-```
-
-Инструмент отправляет в AnkiConnect RPC `updateModelStyling` с полезной нагрузкой вида:
-
-```json
-{
-  "model": {
-    "name": "Поля для ChatGPT",
-    "styling": {
-      "css": ".card { font-family: 'Fira Code', monospace; }"
-    }
-  }
 }
 ```
 
