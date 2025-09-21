@@ -186,6 +186,74 @@
 }
 ```
 
+## Инструмент `anki.cards_info`
+
+- **Назначение:** возвращает подробную информацию о карточках по их идентификаторам.
+- **Аргументы:**
+  - `cardIds: List[int]` — список идентификаторов карточек (обязателен, минимум один элемент). Значения нормализуются к целым числам; строки и числа с плавающей точкой приводятся к `int`, логические значения запрещены.
+- **Ответ:** список объектов `CardInfo` с ключевыми полями карточки и словарём `extra` для остальных значений, возвращённых AnkiConnect.
+
+### `CardInfo`
+
+- **Поля:**
+  - `cardId: int` — идентификатор карточки.
+  - `noteId: int` — идентификатор родительской заметки.
+  - `deckName: str` — имя колоды, в которой находится карточка.
+  - `modelName: str | null` — имя модели карточки (может отсутствовать в старых базах).
+  - `template: str | null` — название шаблона карточки.
+  - `ord: int | null` — порядковый номер карточки в модели.
+  - `queue: int | null` — очередь (learning, review и т.д.).
+  - `type: int | null` — тип карточки (0 — повторение, 1 — новое и т.п.).
+  - `due: int | null` — значение `due`, используемое планировщиком.
+  - `dueString: str | null` — форматированное значение срока.
+  - `interval: int | null` — текущий интервал в днях.
+  - `intervalString: str | null` — интервал в формате Anki (`"10d"`, `"1m"`).
+  - `factor: int | null` — ease factor (значение *1000).
+  - `reps: int | null` — сколько раз карточка была показана.
+  - `lapses: int | null` — количество сбоев.
+  - `left: int | null` — значения `left` (learning steps).
+  - `mod: int | null` — время последнего изменения (Unix timestamp).
+  - `question: str | null` — HTML-содержимое вопроса.
+  - `answer: str | null` — HTML-содержимое ответа.
+  - `extra: Dict[str, Any]` — словарь с остальными полями из ответа AnkiConnect (`did`, `nid`, `flags`, `data` и т.п.).
+
+#### Пример вызова `anki.cards_info`
+
+```json
+{
+  "name": "anki.cards_info",
+  "arguments": {
+    "cardIds": [101, 102]
+  }
+}
+```
+
+#### Пример ответа
+
+```json
+[
+  {
+    "cardId": 101,
+    "noteId": 55,
+    "deckName": "Default",
+    "modelName": "Basic",
+    "template": "Card 1",
+    "ord": 0,
+    "queue": 2,
+    "type": 2,
+    "due": 123456,
+    "interval": 10,
+    "factor": 2500,
+    "reps": 5,
+    "lapses": 1,
+    "extra": {
+      "did": 1234567890123,
+      "flags": 0
+    }
+  }
+]
+```
+
 ### `ModelInfo`
 - **Используется в:** `anki.model_info`.
 - **Поля:**
