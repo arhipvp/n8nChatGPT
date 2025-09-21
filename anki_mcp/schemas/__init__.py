@@ -1,7 +1,13 @@
 """Публичный интерфейс схем MCP-сервера."""
 
 from .actions import InvokeActionArgs
-from .decks import DeleteDecksArgs, DeckInfo, ListDecksResponse, RenameDeckArgs
+from .decks import (
+    CreateDeckArgs,
+    DeleteDecksArgs,
+    DeckInfo,
+    ListDecksResponse,
+    RenameDeckArgs,
+)
 from .images import ImageSpec
 from .media import DeleteMediaArgs as _DeleteMediaArgs
 from .media import MediaRequest, MediaResponse
@@ -41,6 +47,7 @@ __all__ = [
     "CardTemplateSpec",
     "CreateModelArgs",
     "CreateModelResult",
+    "CreateDeckArgs",
     "ListModelsResponse",
     "ModelSummary",
     "UpdateModelStylingArgs",

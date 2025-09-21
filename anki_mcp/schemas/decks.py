@@ -20,6 +20,19 @@ class ListDecksResponse(BaseModel):
     decks: List[DeckInfo] = Field(default_factory=list)
 
 
+class CreateDeckArgs(BaseModel):
+    """Аргументы метода `createDeck`."""
+
+    deck: constr(strip_whitespace=True, min_length=1) = Field(alias="name")
+
+    if ConfigDict is not None:  # pragma: no branch - зависит от версии Pydantic
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover - fallback для Pydantic v1
+
+        class Config:
+            allow_population_by_field_name = True
+
+
 class RenameDeckArgs(BaseModel):
     """Аргументы метода `renameDeck`."""
 
