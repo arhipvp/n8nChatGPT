@@ -7,7 +7,7 @@ import hashlib
 import re
 import uuid
 from io import BytesIO
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 import httpx
 from PIL import Image
@@ -23,8 +23,35 @@ def __getattr__(name: str):  # pragma: no cover - simple module proxy
     raise AttributeError(f"module 'anki_mcp.services.anki' has no attribute {name!r}")
 
 
-async def anki_call(action: str, params: dict):
-    payload = {"action": action, "version": 6, "params": params}
+async def anki_call(
+    action: str,
+    params: Optional[Mapping[str, Any]] = None,
+    *,
+    version: int = 6,
+):
+    if not isinstance(action, str):
+        raise TypeError("action must be a string")
+    trimmed_action = action.strip()
+    if not trimmed_action:
+        raise ValueError("action must be a non-empty string")
+
+    if params is None:
+        normalized_params: Dict[str, Any] = {}
+    elif isinstance(params, dict):
+        normalized_params = dict(params)
+    elif isinstance(params, Mapping):
+        normalized_params = dict(params)
+    else:  # pragma: no cover - защитный хэндлинг типов
+        raise TypeError("params must be a mapping of argument names to values")
+
+    if isinstance(version, bool) or not isinstance(version, int):
+        raise TypeError("version must be an integer")
+
+    payload = {
+        "action": trimmed_action,
+        "version": version,
+        "params": normalized_params,
+    }
     async with httpx.AsyncClient(timeout=25) as client:
         response = await client.post(config.ANKI_URL, json=payload)
         response.raise_for_status()

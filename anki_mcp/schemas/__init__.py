@@ -1,5 +1,6 @@
 """Публичный интерфейс схем MCP-сервера."""
 
+from .actions import InvokeActionArgs
 from .images import ImageSpec
 from .models import CardTemplateSpec, CreateModelArgs, CreateModelResult
 from .notes import (
@@ -24,6 +25,7 @@ __all__ = [
     "CardTemplateSpec",
     "CreateModelArgs",
     "CreateModelResult",
+    "InvokeActionArgs",
     "AddNotesArgs",
     "AddNotesResult",
     "FindNotesArgs",
