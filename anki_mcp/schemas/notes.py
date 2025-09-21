@@ -286,4 +286,7 @@ __all__ = [
     "NoteInfoArgs",
     "NoteInfoResponse",
     "NoteInput",
+    "NoteUpdate",
+    "UpdateNotesArgs",
+    "UpdateNotesResult",
 ]
