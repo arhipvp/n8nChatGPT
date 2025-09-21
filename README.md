@@ -78,7 +78,7 @@
 **Сервисные вызовы**
 - `anki.list_tags` — отдаёт все теги, используемые в базе. [Подробнее](docs/tools.md#инструмент-anki-list_tags)
 - `anki.sync` — инициирует синхронизацию с AnkiWeb. [Подробнее](docs/tools.md#инструмент-anki-sync)
-- `anki.invoke_action` — выполняет произвольный RPC AnkiConnect для редких сценариев.
+- `anki.invoke` — выполняет произвольный RPC AnkiConnect для редких сценариев. [Подробнее](docs/tools.md#anki.invoke)
 - `greet` — быстрый «пинг» для проверки соединения. [Подробнее](docs/tools.md#greet)
 - `search` — вызывает внешний поиск (например, webhook в n8n), возвращая результаты и курсор пагинации. [Подробнее](docs/tools.md#search)
 
