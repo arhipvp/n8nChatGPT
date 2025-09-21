@@ -54,12 +54,24 @@ from anki_mcp.tools.misc import greet
 
 _config.reload_from_env()
 
-DEFAULT_DECK = _config.DEFAULT_DECK
-DEFAULT_MODEL = _config.DEFAULT_MODEL
-SEARCH_API_URL = _config.SEARCH_API_URL
-SEARCH_API_KEY = _config.SEARCH_API_KEY
-ENVIRONMENT_INFO = _config.ENVIRONMENT_INFO
-ANKI_URL = _config.ANKI_URL
+_CONFIG_EXPORTS = {
+    "DEFAULT_DECK",
+    "DEFAULT_MODEL",
+    "SEARCH_API_URL",
+    "SEARCH_API_KEY",
+    "ENVIRONMENT_INFO",
+    "ANKI_URL",
+}
+
+
+def __getattr__(name: str):
+    if name in _CONFIG_EXPORTS:
+        return getattr(_config, name)
+    raise AttributeError(f"module 'server' has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(set(globals()) | _CONFIG_EXPORTS)
 
 # Обеспечиваем доступ к httpx для тестовых заглушек.
 httpx = search_services.httpx
