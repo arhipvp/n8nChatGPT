@@ -13,6 +13,7 @@ from .. import config
 from ..schemas import (
     AddNotesArgs,
     AddNotesResult,
+    CreateDeckArgs,
     DeckInfo,
     DeleteDecksArgs,
     DeleteMediaArgs,
@@ -299,6 +300,22 @@ async def list_decks() -> List[DeckInfo]:
 
     response = ListDecksResponse(decks=deck_infos)
     return response.decks
+
+
+@app.tool(name="anki.create_deck")
+async def create_deck(
+    args: Union[CreateDeckArgs, Mapping[str, Any]]
+) -> Any:
+    if isinstance(args, CreateDeckArgs):
+        normalized = args
+    else:
+        try:
+            normalized = model_validate(CreateDeckArgs, args)
+        except Exception as exc:
+            raise ValueError(f"Invalid create_deck arguments: {exc}") from exc
+
+    payload = {"deck": normalized.deck}
+    return await anki_services.anki_call("createDeck", payload)
 
 
 @app.tool(name="anki.rename_deck")
