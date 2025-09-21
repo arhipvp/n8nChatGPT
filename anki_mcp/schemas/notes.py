@@ -125,6 +125,38 @@ def _normalize_card_ids(raw_ids: Any) -> List[int]:
     return normalized
 
 
+def _normalize_note_ids(raw_ids: Any) -> List[int]:
+    if raw_ids is None:
+        return []
+
+    if isinstance(raw_ids, Mapping):
+        values = list(raw_ids.values())
+    else:
+        values = raw_ids
+
+    if isinstance(values, (str, bytes)):
+        raise TypeError("note_ids must be a sequence of integers")
+
+    if not isinstance(values, TypingIterable):
+        raise TypeError("note_ids must be a sequence of integers")
+
+    normalized: List[int] = []
+    for index, raw_id in enumerate(values):
+        if isinstance(raw_id, bool):
+            raise ValueError(
+                f"note_ids must contain integers, got boolean at index {index}"
+            )
+        try:
+            note_id = int(raw_id)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"note_ids must contain integers, got {raw_id!r} at index {index}"
+            ) from exc
+        normalized.append(note_id)
+
+    return normalized
+
+
 class NoteInput(BaseModel):
     fields: Dict[str, str]
     tags: List[str] = Field(default_factory=list)
@@ -327,6 +359,96 @@ class FindCardsResponse(BaseModel):
             return _normalize_card_ids(value)
 
 
+class NotesToCardsArgs(BaseModel):
+    note_ids: List[int] = Field(min_length=1, alias="noteIds")
+
+    if ConfigDict is not None:  # pragma: no branch
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover
+        class Config:
+            allow_population_by_field_name = True
+
+    if field_validator is not None:  # pragma: no branch
+
+        @field_validator("note_ids", mode="before")  # type: ignore[misc]
+        @classmethod
+        def _normalize_note_ids_field(cls, value):
+            return _normalize_note_ids(value)
+
+    elif validator is not None:  # pragma: no cover
+
+        @validator("note_ids", pre=True)  # type: ignore[misc]
+        def _normalize_note_ids_field(cls, value):  # type: ignore[override]
+            return _normalize_note_ids(value)
+
+
+class NotesToCardsResponse(BaseModel):
+    notes_to_cards: Dict[int, List[int]] = Field(
+        default_factory=dict, alias="notesToCards"
+    )
+
+    if ConfigDict is not None:  # pragma: no branch
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover
+        class Config:
+            allow_population_by_field_name = True
+
+    if field_validator is not None:  # pragma: no branch
+
+        @field_validator("notes_to_cards", mode="before")  # type: ignore[misc]
+        @classmethod
+        def _normalize_mapping(cls, value):
+            if value is None:
+                return {}
+
+            if not isinstance(value, Mapping):
+                raise TypeError(
+                    "notes_to_cards must be a mapping of note ids to card ids"
+                )
+
+            normalized: Dict[int, List[int]] = {}
+            for raw_note_id, raw_cards in value.items():
+                if isinstance(raw_note_id, bool):
+                    raise ValueError(
+                        "notes_to_cards keys must be integers, got boolean"
+                    )
+                try:
+                    note_id = int(raw_note_id)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        "notes_to_cards keys must be integers"
+                    ) from exc
+                normalized[note_id] = _normalize_card_ids(raw_cards)
+            return normalized
+
+    elif validator is not None:  # pragma: no cover
+
+        @validator("notes_to_cards", pre=True)  # type: ignore[misc]
+        def _normalize_mapping(cls, value):  # type: ignore[override]
+            if value is None:
+                return {}
+
+            if not isinstance(value, Mapping):
+                raise TypeError(
+                    "notes_to_cards must be a mapping of note ids to card ids"
+                )
+
+            normalized: Dict[int, List[int]] = {}
+            for raw_note_id, raw_cards in value.items():
+                if isinstance(raw_note_id, bool):
+                    raise ValueError(
+                        "notes_to_cards keys must be integers, got boolean"
+                    )
+                try:
+                    note_id = int(raw_note_id)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        "notes_to_cards keys must be integers"
+                    ) from exc
+                normalized[note_id] = _normalize_card_ids(raw_cards)
+            return normalized
+
+
 class ModelInfo(BaseModel):
     model: str
     fields: List[str]
@@ -343,6 +465,8 @@ __all__ = [
     "FindCardsResponse",
     "FindNotesArgs",
     "FindNotesResponse",
+    "NotesToCardsArgs",
+    "NotesToCardsResponse",
     "ModelInfo",
     "NOTE_RESERVED_TOP_LEVEL_KEYS",
     "NoteInfo",
