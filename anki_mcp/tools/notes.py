@@ -1,16 +1,13 @@
-"""Инструменты MCP, связанные с Anki."""
+"""Инструменты Anki, связанные с заметками и карточками."""
 
 from __future__ import annotations
 
-import base64
-import binascii
 import uuid
 from collections.abc import Iterable
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
-from .. import app
+from .. import app, config
 from ..compat import model_validate
-from .. import config
 from ..schemas import (
     AddNotesArgs,
     AddNotesResult,
@@ -18,42 +15,20 @@ from ..schemas import (
     CardsInfoArgs,
     CardsToNotesArgs,
     CardsToNotesResponse,
-    NotesToCardsArgs,
-    NotesToCardsResponse,
-    CreateDeckArgs,
-    DeckInfo,
-    DeckConfig,
-    DeleteDecksArgs,
-    DeleteMediaArgs,
     DeleteNotesArgs,
     DeleteNotesResult,
     FindCardsArgs,
     FindCardsResponse,
-    MediaRequest,
-    MediaResponse,
-    StoreMediaArgs,
-    CardTemplateSpec,
-    CreateModelArgs,
-    CreateModelResult,
-    ListModelsResponse,
-    ListTagsResponse,
-    UpdateModelStylingArgs,
-    UpdateModelTemplatesArgs,
-    InvokeActionArgs,
     FindNotesArgs,
     FindNotesResponse,
-    ListDecksResponse,
-    ModelSummary,
-    ModelInfo,
     NOTE_RESERVED_TOP_LEVEL_KEYS,
     NoteInfo,
     NoteInfoArgs,
     NoteInfoResponse,
     NoteInput,
     NoteUpdate,
-    GetDeckConfigArgs,
-    SaveDeckConfigArgs,
-    RenameDeckArgs,
+    NotesToCardsArgs,
+    NotesToCardsResponse,
     UpdateNotesArgs,
     UpdateNotesResult,
 )
@@ -61,447 +36,6 @@ from ..services import anki as anki_services
 from ..services import client as anki_client
 from ..services import media as media_services
 from ..services import notes as notes_services
-
-
-def _model_dump(instance: Any, *, by_alias: bool = False, exclude_none: bool = False) -> Dict[str, Any]:
-    if hasattr(instance, "model_dump"):
-        return instance.model_dump(by_alias=by_alias, exclude_none=exclude_none)
-    if hasattr(instance, "dict"):
-        return instance.dict(by_alias=by_alias, exclude_none=exclude_none)
-    raise TypeError("instance must be a Pydantic model")
-
-
-def _normalize_template(template: CardTemplateSpec) -> Dict[str, str]:
-    return {
-        "Name": template.name,
-        "Front": template.front,
-        "Back": template.back,
-    }
-
-
-def _normalize_media_error(filename: str, exc: Exception) -> Exception:
-    message = str(exc)
-    lowered = message.lower()
-    markers = (
-        "not found",
-        "does not exist",
-        "no such file",
-        "missing",
-    )
-    if any(marker in lowered for marker in markers):
-        return FileNotFoundError(f"Media file {filename!r} not found")
-    return exc
-
-
-def _calculate_media_size(data_base64: str) -> Optional[int]:
-    try:
-        raw = base64.b64decode(data_base64, validate=True)
-    except (binascii.Error, ValueError):
-        try:
-            raw = base64.b64decode(data_base64, validate=False)
-        except Exception:
-            return None
-    return len(raw)
-
-
-@app.tool(name="anki.invoke")
-async def invoke_action(args: InvokeActionArgs) -> Any:
-    params_payload: Dict[str, Any]
-    if args.params is None:
-        params_payload = {}
-    elif isinstance(args.params, dict):
-        params_payload = dict(args.params)
-    elif isinstance(args.params, Mapping):
-        params_payload = dict(args.params)
-    else:
-        raise TypeError("params must be a mapping of argument names to values")
-
-    if args.version is None:
-        version = 6
-    elif isinstance(args.version, bool) or not isinstance(args.version, int):
-        raise TypeError("version must be an integer")
-    else:
-        version = args.version
-
-    payload = {
-        "action": args.action,
-        "version": version,
-        "params": params_payload,
-    }
-
-    result = await anki_client.anki_call(
-        payload["action"], payload["params"], version=payload["version"]
-    )
-    return result
-
-
-_SYNC_VALUE_ERROR_KEYWORDS = (
-    "invalid",
-    "missing",
-    "empty",
-    "required",
-    "unknown",
-    "no such",
-    "not found",
-    "please provide",
-    "must ",
-    "should ",
-)
-
-
-@app.tool(name="anki.sync")
-async def sync() -> Mapping[str, Any]:
-    try:
-        result = await anki_client.anki_call("sync", {})
-    except RuntimeError as exc:
-        detail = str(exc)
-        if detail.lower().startswith("anki error:"):
-            detail = detail.split(":", 1)[1].strip() or detail
-        lowered = detail.lower()
-        message = f"Не удалось выполнить синхронизацию Anki: {detail}"
-        if any(keyword in lowered for keyword in _SYNC_VALUE_ERROR_KEYWORDS):
-            raise ValueError(message) from exc
-        raise RuntimeError(message) from exc
-
-    if result is None:
-        return {"synced": True}
-
-    if isinstance(result, bool):
-        return {"synced": bool(result)}
-
-    if isinstance(result, Mapping):
-        return dict(result)
-
-    return {"result": result}
-
-
-@app.tool(name="anki.create_model")
-async def create_model(
-    args: Union[CreateModelArgs, Mapping[str, Any]]
-) -> CreateModelResult:
-    if isinstance(args, CreateModelArgs):
-        normalized = args
-    else:
-        try:
-            normalized = model_validate(CreateModelArgs, args)
-        except Exception as exc:
-            raise ValueError(f"Invalid create_model arguments: {exc}") from exc
-
-    reserved = {"modelName", "inOrderFields", "cardTemplates", "css"}
-    extra_options = dict(normalized.options)
-    for key in extra_options:
-        if key in reserved:
-            raise ValueError(
-                f"options cannot override reserved parameter {key!r}"
-            )
-
-    payload = {
-        "modelName": normalized.model_name,
-        "inOrderFields": normalized.in_order_fields,
-        "cardTemplates": [
-            _normalize_template(template) for template in normalized.card_templates
-        ],
-        "css": normalized.css,
-    }
-
-    if normalized.is_cloze is not None:
-        existing = extra_options.get("isCloze")
-        if existing is not None and existing != normalized.is_cloze:
-            raise ValueError(
-                "is_cloze conflicts with options['isCloze'] value"
-            )
-        payload["isCloze"] = normalized.is_cloze
-        extra_options["isCloze"] = normalized.is_cloze
-
-    payload.update(extra_options)
-
-    anki_response = await anki_client.anki_call("createModel", payload)
-
-    return CreateModelResult(
-        model_name=normalized.model_name,
-        in_order_fields=normalized.in_order_fields,
-        card_templates=list(normalized.card_templates),
-        css=normalized.css,
-        options=extra_options,
-        anki_response=anki_response,
-    )
-
-
-@app.tool(name="anki.update_model_templates")
-async def update_model_templates(
-    args: Union[UpdateModelTemplatesArgs, Mapping[str, Any]]
-) -> Any:
-    if isinstance(args, UpdateModelTemplatesArgs):
-        normalized = args
-    else:
-        try:
-            normalized = model_validate(UpdateModelTemplatesArgs, args)
-        except Exception as exc:
-            raise ValueError(
-                f"Invalid update_model_templates arguments: {exc}"
-            ) from exc
-
-    templates_payload: Dict[str, Dict[str, str]] = {}
-    for key, template in normalized.templates.items():
-        template_name = template.name
-        if not template_name:
-            raise ValueError("Template name must be a non-empty string")
-        key_stripped = key.strip()
-        if key_stripped and key_stripped != template_name:
-            raise ValueError(
-                f"Template mapping key {key!r} must match template name {template_name!r}"
-            )
-        if template_name in templates_payload:
-            raise ValueError(f"Duplicate template definition for {template_name!r}")
-        templates_payload[template_name] = {
-            "Front": template.front,
-            "Back": template.back,
-        }
-
-    payload = {
-        "model": {
-            "name": normalized.model_name,
-            "templates": templates_payload,
-        }
-    }
-
-    return await anki_client.anki_call("updateModelTemplates", payload)
-
-
-@app.tool(name="anki.update_model_styling")
-async def update_model_styling(
-    args: Union[UpdateModelStylingArgs, Mapping[str, Any]]
-) -> Any:
-    if isinstance(args, UpdateModelStylingArgs):
-        normalized = args
-    else:
-        try:
-            normalized = model_validate(UpdateModelStylingArgs, args)
-        except Exception as exc:
-            raise ValueError(
-                f"Invalid update_model_styling arguments: {exc}"
-            ) from exc
-
-    payload = {
-        "model": {
-            "name": normalized.model_name,
-            "styling": {"css": normalized.css},
-        }
-    }
-
-    return await anki_client.anki_call("updateModelStyling", payload)
-
-
-@app.tool(name="anki.list_models")
-async def list_models() -> ListModelsResponse:
-    raw_models = await anki_client.anki_call("modelNamesAndIds", {})
-
-    if raw_models is None:
-        return ListModelsResponse()
-
-    if not isinstance(raw_models, Mapping):
-        raise ValueError(
-            "modelNamesAndIds response must be a mapping of model names to ids"
-        )
-
-    model_summaries: List[ModelSummary] = []
-    for name, model_id in raw_models.items():
-        if not isinstance(name, str):
-            raise ValueError(
-                f"modelNamesAndIds returned invalid model name: {name!r}"
-            )
-
-        if isinstance(model_id, bool):
-            raise ValueError(
-                "modelNamesAndIds returned non-integer model id "
-                f"for {name!r}: {model_id!r}"
-            )
-
-        try:
-            normalized_id = int(model_id)
-        except (TypeError, ValueError):
-            raise ValueError(
-                "modelNamesAndIds returned non-integer model id "
-                f"for {name!r}: {model_id!r}"
-            ) from None
-
-        model_summaries.append(ModelSummary(id=normalized_id, name=name))
-
-    sorted_models = sorted(
-        model_summaries, key=lambda model: (model.name.casefold(), model.name)
-    )
-
-    return ListModelsResponse(models=sorted_models)
-
-
-@app.tool(name="anki.list_decks")
-async def list_decks() -> List[DeckInfo]:
-    raw_decks = await anki_client.anki_call("deckNamesAndIds", {})
-
-    if raw_decks is None:
-        return []
-
-    if not isinstance(raw_decks, Mapping):
-        raise ValueError("deckNamesAndIds response must be a mapping of deck names to ids")
-
-    deck_infos: List[DeckInfo] = []
-    for name, deck_id in raw_decks.items():
-        if not isinstance(name, str):
-            raise ValueError(f"deckNamesAndIds returned invalid deck name: {name!r}")
-
-        if isinstance(deck_id, bool):
-            raise ValueError(
-                f"deckNamesAndIds returned non-integer deck id for {name!r}: {deck_id!r}"
-            )
-
-        try:
-            normalized_id = int(deck_id)
-        except (TypeError, ValueError):
-            raise ValueError(
-                f"deckNamesAndIds returned non-integer deck id for {name!r}: {deck_id!r}"
-            ) from None
-
-        deck_infos.append(DeckInfo(id=normalized_id, name=name))
-
-    response = ListDecksResponse(decks=deck_infos)
-    return response.decks
-
-
-@app.tool(name="anki.list_tags")
-async def list_tags() -> ListTagsResponse:
-    try:
-        raw_tags = await anki_client.anki_call("getTags", {})
-    except RuntimeError as exc:
-        raise ValueError(f"AnkiConnect error: {exc}") from exc
-
-    if raw_tags is None:
-        tags: List[str] = []
-    else:
-        if isinstance(raw_tags, (str, bytes)):
-            raise ValueError("getTags response must be a sequence of strings")
-
-        if isinstance(raw_tags, Mapping):
-            raise ValueError("getTags response must be a sequence of strings")
-
-        try:
-            iterator = iter(raw_tags)
-        except TypeError as exc:  # pragma: no cover - защитный хендлинг
-            raise ValueError("getTags response must be a sequence of strings") from exc
-
-        tags = []
-        for index, tag in enumerate(iterator):
-            if not isinstance(tag, str):
-                raise ValueError(
-                    f"getTags returned non-string value at index {index}: {tag!r}"
-                )
-
-            stripped = tag.strip()
-            if not stripped:
-                raise ValueError(f"getTags returned empty tag at index {index}")
-
-            tags.append(stripped)
-
-    unique: Dict[str, str] = {}
-    for name in tags:
-        key = name.casefold()
-        unique.setdefault(key, name)
-
-    unique_sorted = sorted(unique.values(), key=lambda name: (name.casefold(), name))
-
-    return ListTagsResponse(tags=unique_sorted)
-
-
-@app.tool(name="anki.create_deck")
-async def create_deck(
-    args: Union[CreateDeckArgs, Mapping[str, Any]]
-) -> Any:
-    if isinstance(args, CreateDeckArgs):
-        normalized = args
-    else:
-        try:
-            normalized = model_validate(CreateDeckArgs, args)
-        except Exception as exc:
-            raise ValueError(f"Invalid create_deck arguments: {exc}") from exc
-
-    payload = {"deck": normalized.deck}
-    return await anki_client.anki_call("createDeck", payload)
-
-
-@app.tool(name="anki.get_deck_config")
-async def get_deck_config(
-    args: Union[GetDeckConfigArgs, Mapping[str, Any]]
-) -> DeckConfig:
-    if isinstance(args, GetDeckConfigArgs):
-        normalized = args
-    else:
-        try:
-            normalized = model_validate(GetDeckConfigArgs, args)
-        except Exception as exc:
-            raise ValueError(f"Invalid get_deck_config arguments: {exc}") from exc
-
-    payload = {"deck": normalized.deck}
-    raw_config = await anki_client.anki_call("getDeckConfig", payload)
-
-    try:
-        return model_validate(DeckConfig, raw_config)
-    except Exception as exc:  # pragma: no cover - depends on validation paths
-        raise ValueError(f"Invalid getDeckConfig response: {exc}") from exc
-
-
-@app.tool(name="anki.save_deck_config")
-async def save_deck_config(
-    args: Union[SaveDeckConfigArgs, Mapping[str, Any]]
-) -> Mapping[str, Any]:
-    if isinstance(args, SaveDeckConfigArgs):
-        normalized = args
-    else:
-        try:
-            normalized = model_validate(SaveDeckConfigArgs, args)
-        except Exception as exc:
-            raise ValueError(f"Invalid save_deck_config arguments: {exc}") from exc
-
-    config_payload = _model_dump(
-        normalized.config, by_alias=True, exclude_none=True
-    )
-    save_result = await anki_client.anki_call(
-        "saveDeckConfig", {"config": config_payload}
-    )
-
-    response: Dict[str, Any] = {
-        "save_result": save_result,
-    }
-
-    config_id = normalized.config.id
-    if config_id is not None:
-        response["configId"] = config_id
-
-    deck_name = normalized.deck
-    if deck_name:
-        if config_id is None:
-            raise ValueError(
-                "Deck config must include id to be assigned to a deck"
-            )
-
-        set_payload = {"deck": deck_name, "configId": config_id}
-        set_result = await anki_client.anki_call("setDeckConfigId", set_payload)
-        response.update({
-            "deck": deck_name,
-            "set_result": set_result,
-        })
-
-    return response
-
-
-@app.tool(name="anki.rename_deck")
-async def rename_deck(args: RenameDeckArgs):
-    payload = {"oldName": args.old_name, "newName": args.new_name}
-    return await anki_client.anki_call("renameDeck", payload)
-
-
-@app.tool(name="anki.delete_decks")
-async def delete_decks(args: DeleteDecksArgs):
-    payload = {"decks": list(args.decks), "cardsToo": bool(args.cards_too)}
-    return await anki_client.anki_call("deleteDecks", payload)
 
 
 @app.tool(name="anki.find_notes")
@@ -651,25 +185,25 @@ async def cards_to_notes(
                 note_id = int(raw_note_id)
             except (TypeError, ValueError) as exc:
                 raise ValueError(
-                    f"cardsToNotes returned invalid note id for card {card_id}: {raw_note_id!r}"
+                    "cardsToNotes returned non-integer note identifier"
                 ) from exc
             mapping[card_id] = note_id
     elif isinstance(raw_response, Iterable) and not isinstance(
         raw_response, (str, bytes)
     ):
         try:
-            note_candidates = list(raw_response)
+            note_ids = list(raw_response)
         except TypeError as exc:  # pragma: no cover - safety guard
             raise ValueError("cardsToNotes response must be iterable") from exc
-        if len(note_candidates) != len(normalized.card_ids):
+        if len(note_ids) != len(normalized.card_ids):
             raise ValueError(
                 "cardsToNotes response length does not match requested card ids"
             )
         mapping = {}
-        for index, raw_note_id in enumerate(note_candidates):
+        for index, raw_note_id in enumerate(note_ids):
             if isinstance(raw_note_id, bool):
                 raise ValueError(
-                    f"cardsToNotes returned boolean note id at index {index}"
+                    f"cardsToNotes returned boolean note id at index {index}: {raw_note_id!r}"
                 )
             try:
                 note_id = int(raw_note_id)
@@ -781,59 +315,6 @@ async def notes_to_cards(
         raise ValueError(f"notesToCards response could not be validated: {exc}") from exc
 
 
-@app.tool(name="anki.get_media")
-async def get_media(args: MediaRequest) -> MediaResponse:
-    try:
-        raw_base64 = await anki_client.anki_call(
-            "retrieveMediaFile", {"filename": args.filename}
-        )
-    except Exception as exc:  # pragma: no cover - конкретные ошибки проверяются тестами
-        normalized_exc = _normalize_media_error(args.filename, exc)
-        if normalized_exc is exc:
-            raise
-        raise normalized_exc from exc
-
-    if not isinstance(raw_base64, str):
-        raise ValueError("retrieveMediaFile response must be a base64 string")
-
-    size_bytes = _calculate_media_size(raw_base64)
-    return MediaResponse(
-        filename=args.filename,
-        data_base64=raw_base64,
-        size_bytes=size_bytes,
-    )
-
-
-@app.tool(name="anki.store_media")
-async def store_media(
-    args: Union[StoreMediaArgs, Mapping[str, Any]]
-) -> Dict[str, Any]:
-    if isinstance(args, StoreMediaArgs):
-        normalized = args
-    else:
-        try:
-            normalized = model_validate(StoreMediaArgs, args)
-        except Exception as exc:
-            raise ValueError(f"Invalid store_media arguments: {exc}") from exc
-
-    try:
-        try:
-            base64.b64decode(normalized.data_base64, validate=True)
-        except (binascii.Error, ValueError):
-            base64.b64decode(normalized.data_base64, validate=False)
-    except (binascii.Error, ValueError) as exc:
-        raise ValueError("data_base64 must be valid Base64-encoded string") from exc
-
-    anki_response = await anki_client.store_media_file(
-        normalized.filename, normalized.data_base64
-    )
-
-    return {
-        "filename": normalized.filename,
-        "anki_response": anki_response,
-    }
-
-
 @app.tool(name="anki.note_info")
 async def note_info(args: NoteInfoArgs) -> NoteInfoResponse:
     raw_notes = await anki_client.anki_call("notesInfo", {"notes": args.note_ids})
@@ -841,45 +322,11 @@ async def note_info(args: NoteInfoArgs) -> NoteInfoResponse:
     return NoteInfoResponse(notes=normalized)
 
 
-@app.tool(name="anki.delete_media")
-async def delete_media(args: DeleteMediaArgs) -> Dict[str, Any]:
-    try:
-        raw_response = await anki_client.anki_call(
-            "deleteMediaFile", {"filename": args.filename}
-        )
-    except Exception as exc:  # pragma: no cover - конкретные ошибки проверяются тестами
-        normalized_exc = _normalize_media_error(args.filename, exc)
-        if normalized_exc is exc:
-            raise
-        raise normalized_exc from exc
-
-    deleted: bool
-    if isinstance(raw_response, Mapping):
-        deleted = bool(raw_response.get("deleted", True))
-    elif isinstance(raw_response, list):
-        deleted = all(bool(item) for item in raw_response)
-    else:
-        deleted = raw_response in (None, True)
-
-    return {
-        "filename": args.filename,
-        "deleted": deleted,
-        "anki_response": raw_response,
-    }
-
-
-@app.tool(name="anki.model_info")
-async def model_info(model: Optional[str] = None) -> ModelInfo:
-    target_model = model or config.DEFAULT_MODEL
-    fields, templates, css = await anki_services.get_model_fields_templates(target_model)
-    return ModelInfo(model=target_model, fields=fields, templates=templates, styling=css)
-
-
 @app.tool(name="anki.add_from_model")
 async def add_from_model(
     deck: Optional[str] = None,
     model: Optional[str] = None,
-    items: Optional[List[Union[NoteInput, Dict[str, str]]]] = None,
+    items: Optional[List[Union[NoteInput, Dict[str, Any]]]] = None,
 ) -> AddNotesResult:
     if items is None:
         raise ValueError("items must be provided")
@@ -926,15 +373,14 @@ async def add_from_model(
 
     decks_to_create = {deck}
     model_fields_cache: Dict[str, List[str]] = {}
-    field_aliases_cache: Dict[str, Dict[str, str]] = {}
+    canonical_field_map_cache: Dict[str, Dict[str, str]] = {}
 
-    async def _ensure_model_context(model_name: str) -> Tuple[List[str], Dict[str, str]]:
-        cached_fields = model_fields_cache.get(model_name)
-        if cached_fields is None:
-            fields = await anki_services.get_model_field_names(model_name)
-            model_fields_cache[model_name] = fields
-            field_aliases_cache[model_name] = {field.lower(): field for field in fields}
-        return model_fields_cache[model_name], field_aliases_cache[model_name]
+    async def _ensure_model_context_local(
+        model_name: str,
+    ) -> Tuple[List[str], Dict[str, str]]:
+        return await _ensure_model_context(
+            model_name, model_fields_cache, canonical_field_map_cache
+        )
 
     for note in normalized_items:
         if note.deck:
@@ -943,15 +389,17 @@ async def add_from_model(
     for deck_name in decks_to_create:
         await anki_client.anki_call("createDeck", {"deck": deck_name})
 
-    notes_payload: List[dict] = []
     results: List[dict] = []
     added = skipped = 0
 
+    notes_payload: List[dict] = []
     for index, note in enumerate(normalized_items):
         note_deck = note.deck or deck
         note_model = note.model or model
 
-        model_fields, field_aliases = await _ensure_model_context(note_model)
+        model_fields, canonical_field_map = await _ensure_model_context_local(
+            note_model
+        )
 
         fields = notes_services.normalize_and_validate_note_fields(note.fields, model_fields)
 
@@ -980,7 +428,7 @@ async def add_from_model(
                 continue
 
             filename = img.filename or f"{uuid.uuid4().hex}.{ext_hint or 'jpg'}"
-            canonical_target = field_aliases.get(img.target_field.lower())
+            canonical_target = canonical_field_map.get(img.target_field.lower())
             if not canonical_target:
                 results.append(
                     {
@@ -1029,6 +477,21 @@ async def add_from_model(
     return AddNotesResult(added=added, skipped=skipped, details=results)
 
 
+async def _ensure_model_context(
+    model_name: str,
+    model_fields_cache: Dict[str, List[str]],
+    canonical_field_map_cache: Dict[str, Dict[str, str]],
+) -> Tuple[List[str], Dict[str, str]]:
+    cached_fields = model_fields_cache.get(model_name)
+    if cached_fields is None:
+        fields = await anki_services.get_model_field_names(model_name)
+        model_fields_cache[model_name] = fields
+        canonical_field_map_cache[model_name] = {
+            field.lower(): field for field in fields
+        }
+    return model_fields_cache[model_name], canonical_field_map_cache[model_name]
+
+
 @app.tool(name="anki.add_notes")
 async def add_notes(args: AddNotesArgs) -> AddNotesResult:
     notes_payload: List[dict] = []
@@ -1040,15 +503,8 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
     model_fields_cache: Dict[str, List[str]] = {}
     canonical_field_map_cache: Dict[str, Dict[str, str]] = {}
 
-    async def _ensure_model_context(model_name: str) -> Tuple[List[str], Dict[str, str]]:
-        cached_fields = model_fields_cache.get(model_name)
-        if cached_fields is None:
-            fields = await anki_services.get_model_field_names(model_name)
-            model_fields_cache[model_name] = fields
-            canonical_field_map_cache[model_name] = {
-                field.lower(): field for field in fields
-            }
-        return model_fields_cache[model_name], canonical_field_map_cache[model_name]
+    async def _ensure_model_context_local(model_name: str) -> Tuple[List[str], Dict[str, str]]:
+        return await _ensure_model_context(model_name, model_fields_cache, canonical_field_map_cache)
 
     for note in normalized_notes:
         if note.deck:
@@ -1061,7 +517,7 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
         note_deck = note.deck or args.deck
         note_model = note.model or args.model
 
-        model_fields, canonical_field_map = await _ensure_model_context(note_model)
+        model_fields, canonical_field_map = await _ensure_model_context_local(note_model)
 
         fields = notes_services.normalize_and_validate_note_fields(note.fields, model_fields)
 
@@ -1491,19 +947,14 @@ async def delete_notes(args: DeleteNotesArgs) -> DeleteNotesResult:
 
 
 __all__ = [
-    "invoke_action",
+    "find_notes",
+    "find_cards",
+    "cards_info",
+    "cards_to_notes",
+    "notes_to_cards",
+    "note_info",
     "add_from_model",
     "add_notes",
-    "create_model",
-    "update_model_templates",
-    "delete_decks",
-    "delete_media",
-    "delete_notes",
-    "find_notes",
-    "get_media",
-    "list_decks",
-    "model_info",
-    "note_info",
-    "rename_deck",
     "update_notes",
+    "delete_notes",
 ]

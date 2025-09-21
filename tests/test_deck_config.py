@@ -4,13 +4,8 @@ import pytest
 
 import test_deck_tools as deck_helpers
 
-from server import (
-    DeckConfig,
-    GetDeckConfigArgs,
-    SaveDeckConfigArgs,
-    get_deck_config,
-    save_deck_config,
-)
+from anki_mcp import DeckConfig, GetDeckConfigArgs, SaveDeckConfigArgs
+from anki_mcp.tools.decks import get_deck_config, save_deck_config
 
 
 SAMPLE_DECK_CONFIG_RAW = {

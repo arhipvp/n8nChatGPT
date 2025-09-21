@@ -90,7 +90,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from server import CardsToNotesArgs, CardsToNotesResponse, cards_to_notes
+from anki_mcp import CardsToNotesArgs, CardsToNotesResponse
+from anki_mcp.tools.notes import cards_to_notes
 
 
 def test_cards_to_notes_normalizes_response(monkeypatch):

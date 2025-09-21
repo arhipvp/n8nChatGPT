@@ -42,12 +42,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from server import (  # noqa: E402  # pylint: disable=wrong-import-position
-    ImageSpec,
-    NoteUpdate,
-    UpdateNotesArgs,
-    update_notes,
-)
+from anki_mcp import ImageSpec, NoteUpdate, UpdateNotesArgs  # noqa: E402  # pylint: disable=wrong-import-position
+from anki_mcp.tools.notes import update_notes  # noqa: E402  # pylint: disable=wrong-import-position
 
 
 @pytest.fixture

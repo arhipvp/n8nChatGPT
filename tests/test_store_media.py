@@ -41,7 +41,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from server import StoreMediaArgs, store_media  # noqa: E402
+from anki_mcp import StoreMediaArgs  # noqa: E402
+from anki_mcp.tools.media import store_media  # noqa: E402
 
 
 def _unwrap(tool):
