@@ -21,6 +21,7 @@ from ..schemas import (
     DeleteNotesResult,
     MediaRequest,
     MediaResponse,
+    StoreMediaArgs,
     CardTemplateSpec,
     CreateModelArgs,
     CreateModelResult,
@@ -385,6 +386,36 @@ async def get_media(args: MediaRequest) -> MediaResponse:
         data_base64=raw_base64,
         size_bytes=size_bytes,
     )
+
+
+@app.tool(name="anki.store_media")
+async def store_media(
+    args: Union[StoreMediaArgs, Mapping[str, Any]]
+) -> Dict[str, Any]:
+    if isinstance(args, StoreMediaArgs):
+        normalized = args
+    else:
+        try:
+            normalized = model_validate(StoreMediaArgs, args)
+        except Exception as exc:
+            raise ValueError(f"Invalid store_media arguments: {exc}") from exc
+
+    try:
+        try:
+            base64.b64decode(normalized.data_base64, validate=True)
+        except (binascii.Error, ValueError):
+            base64.b64decode(normalized.data_base64, validate=False)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("data_base64 must be valid Base64-encoded string") from exc
+
+    anki_response = await anki_services.store_media_file(
+        normalized.filename, normalized.data_base64
+    )
+
+    return {
+        "filename": normalized.filename,
+        "anki_response": anki_response,
+    }
 
 
 @app.tool(name="anki.note_info")
