@@ -63,7 +63,7 @@ def test_list_models_normalizes_and_sorts(monkeypatch):
         assert params == {}
         return {"Cloze": "8", "Basic": 1, "Basic (and reversed card)": 5}
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     list_models_fn = _unwrap_tool(list_models)
     result = asyncio.run(list_models_fn())
@@ -83,7 +83,7 @@ def test_list_models_invalid_payload(monkeypatch):
         assert params == {}
         return ["Basic", "Cloze"]
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     list_models_fn = _unwrap_tool(list_models)
 

@@ -99,7 +99,7 @@ def test_cards_to_notes_normalizes_response(monkeypatch):
         assert params == {"cards": [111, 222]}
         return ["555", 777]
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     cards_to_notes_fn = getattr(cards_to_notes, "fn", cards_to_notes)
     result = asyncio.run(cards_to_notes_fn({"cardIds": ["111", 222]}))
@@ -114,7 +114,7 @@ def test_cards_to_notes_rejects_invalid_response(monkeypatch):
     async def fake_anki_call(action, params):
         return "unexpected"
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     cards_to_notes_fn = getattr(cards_to_notes, "fn", cards_to_notes)
 

@@ -102,7 +102,7 @@ def test_find_cards_accepts_mapping(monkeypatch):
         assert params == {"query": "deck:Default"}
         return [111, "222", 333.0, " 444 "]
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     find_cards_fn = getattr(find_cards, "fn", find_cards)
     result = asyncio.run(
@@ -120,7 +120,7 @@ def test_find_cards_rejects_non_list_response(monkeypatch):
         assert action == "findCards"
         return "oops"
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     find_cards_fn = getattr(find_cards, "fn", find_cards)
 
@@ -133,7 +133,7 @@ def test_find_cards_rejects_boolean_id(monkeypatch):
         assert action == "findCards"
         return [True, 42]
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     find_cards_fn = getattr(find_cards, "fn", find_cards)
 

@@ -64,7 +64,7 @@ async def test_add_from_model_autolinks_sources(monkeypatch):
             return [321]
         raise AssertionError(f"Unexpected action: {action}")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     note = NoteInput(fields={"Front": "Q", "Back": "A", "Sources": "https://example.com"})
 
@@ -90,7 +90,7 @@ async def test_add_notes_autolinks_sources(monkeypatch):
             return [654]
         raise AssertionError(f"Unexpected action: {action}")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     args = AddNotesArgs(
         deck="Deck",

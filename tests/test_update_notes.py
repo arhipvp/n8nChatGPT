@@ -95,12 +95,12 @@ async def test_update_notes_normalizes_fields_and_calls_actions(monkeypatch):
         process_calls[note_index] += 1
         results.append({"index": note_index, "info": "processed"})
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
     monkeypatch.setattr(
-        "anki_mcp.services.anki.normalize_fields_for_model", fake_normalize
+        "anki_mcp.services.notes.normalize_fields_for_model", fake_normalize
     )
     monkeypatch.setattr(
-        "anki_mcp.services.anki.process_data_urls_in_fields", fake_process
+        "anki_mcp.services.media.process_data_urls_in_fields", fake_process
     )
 
     note = NoteUpdate(
@@ -153,16 +153,16 @@ async def test_update_notes_handles_images(monkeypatch):
     def fake_sanitize(payload):
         return "CLEAN", "png"
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
-    monkeypatch.setattr("anki_mcp.services.anki.store_media_file", fake_store_media)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.store_media_file", fake_store_media)
     monkeypatch.setattr(
-        "anki_mcp.services.anki.sanitize_image_payload", fake_sanitize
+        "anki_mcp.services.media.sanitize_image_payload", fake_sanitize
     )
     async def fake_process(fields, results, note_index):
         return None
 
     monkeypatch.setattr(
-        "anki_mcp.services.anki.process_data_urls_in_fields", fake_process
+        "anki_mcp.services.media.process_data_urls_in_fields", fake_process
     )
 
     note = NoteUpdate(

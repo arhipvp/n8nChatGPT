@@ -64,7 +64,7 @@ async def test_update_model_styling_payload(monkeypatch):
         captured["params"] = params
         return {"updated": True}
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     args = UpdateModelStylingArgs(
         model_name="Поля для ChatGPT",
@@ -92,7 +92,7 @@ async def test_update_model_styling_accepts_mappings(monkeypatch):
         captured["params"] = params
         return None
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     payload = {"modelName": "Custom QA", "css": None}
 
@@ -113,7 +113,7 @@ async def test_update_model_styling_rejects_invalid_input(monkeypatch):
     async def fake_anki_call(action, params):  # pragma: no cover - should not run
         raise AssertionError("anki_call must not be invoked on invalid input")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     with pytest.raises(ValueError) as exc:
         await _unwrap(update_model_styling)({"model_name": "  ", "css": "body {}"})

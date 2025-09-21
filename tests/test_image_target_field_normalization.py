@@ -70,8 +70,8 @@ def _setup_common_monkeypatches(monkeypatch, captured, *, allow_template_calls: 
     async def fake_store_media_file(filename: str, data_b64: str):
         captured.setdefault("storeMedia", []).append({"filename": filename, "data": data_b64})
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
-    monkeypatch.setattr("anki_mcp.services.anki.store_media_file", fake_store_media_file)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.store_media_file", fake_store_media_file)
     monkeypatch.setattr(server.uuid, "uuid4", lambda: SimpleNamespace(hex="img-alias"))
 
 

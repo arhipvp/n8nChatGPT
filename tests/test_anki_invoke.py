@@ -61,7 +61,7 @@ async def test_invoke_action_passes_payload(monkeypatch):
         payloads.append({"action": action, "params": params, "version": version})
         return {"echo": len(payloads)}
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     first_args = InvokeActionArgs(action="multi", params={"actions": []}, version=7)
     first_result = await _unwrap(invoke_action)(first_args)

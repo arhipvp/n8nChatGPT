@@ -58,6 +58,9 @@ from ..schemas import (
     UpdateNotesResult,
 )
 from ..services import anki as anki_services
+from ..services import client as anki_client
+from ..services import media as media_services
+from ..services import notes as notes_services
 
 
 def _model_dump(instance: Any, *, by_alias: bool = False, exclude_none: bool = False) -> Dict[str, Any]:
@@ -126,7 +129,7 @@ async def invoke_action(args: InvokeActionArgs) -> Any:
         "params": params_payload,
     }
 
-    result = await anki_services.anki_call(
+    result = await anki_client.anki_call(
         payload["action"], payload["params"], version=payload["version"]
     )
     return result
@@ -149,7 +152,7 @@ _SYNC_VALUE_ERROR_KEYWORDS = (
 @app.tool(name="anki.sync")
 async def sync() -> Mapping[str, Any]:
     try:
-        result = await anki_services.anki_call("sync", {})
+        result = await anki_client.anki_call("sync", {})
     except RuntimeError as exc:
         detail = str(exc)
         if detail.lower().startswith("anki error:"):
@@ -212,7 +215,7 @@ async def create_model(
 
     payload.update(extra_options)
 
-    anki_response = await anki_services.anki_call("createModel", payload)
+    anki_response = await anki_client.anki_call("createModel", payload)
 
     return CreateModelResult(
         model_name=normalized.model_name,
@@ -262,7 +265,7 @@ async def update_model_templates(
         }
     }
 
-    return await anki_services.anki_call("updateModelTemplates", payload)
+    return await anki_client.anki_call("updateModelTemplates", payload)
 
 
 @app.tool(name="anki.update_model_styling")
@@ -286,12 +289,12 @@ async def update_model_styling(
         }
     }
 
-    return await anki_services.anki_call("updateModelStyling", payload)
+    return await anki_client.anki_call("updateModelStyling", payload)
 
 
 @app.tool(name="anki.list_models")
 async def list_models() -> ListModelsResponse:
-    raw_models = await anki_services.anki_call("modelNamesAndIds", {})
+    raw_models = await anki_client.anki_call("modelNamesAndIds", {})
 
     if raw_models is None:
         return ListModelsResponse()
@@ -333,7 +336,7 @@ async def list_models() -> ListModelsResponse:
 
 @app.tool(name="anki.list_decks")
 async def list_decks() -> List[DeckInfo]:
-    raw_decks = await anki_services.anki_call("deckNamesAndIds", {})
+    raw_decks = await anki_client.anki_call("deckNamesAndIds", {})
 
     if raw_decks is None:
         return []
@@ -367,7 +370,7 @@ async def list_decks() -> List[DeckInfo]:
 @app.tool(name="anki.list_tags")
 async def list_tags() -> ListTagsResponse:
     try:
-        raw_tags = await anki_services.anki_call("getTags", {})
+        raw_tags = await anki_client.anki_call("getTags", {})
     except RuntimeError as exc:
         raise ValueError(f"AnkiConnect error: {exc}") from exc
 
@@ -421,7 +424,7 @@ async def create_deck(
             raise ValueError(f"Invalid create_deck arguments: {exc}") from exc
 
     payload = {"deck": normalized.deck}
-    return await anki_services.anki_call("createDeck", payload)
+    return await anki_client.anki_call("createDeck", payload)
 
 
 @app.tool(name="anki.get_deck_config")
@@ -437,7 +440,7 @@ async def get_deck_config(
             raise ValueError(f"Invalid get_deck_config arguments: {exc}") from exc
 
     payload = {"deck": normalized.deck}
-    raw_config = await anki_services.anki_call("getDeckConfig", payload)
+    raw_config = await anki_client.anki_call("getDeckConfig", payload)
 
     try:
         return model_validate(DeckConfig, raw_config)
@@ -460,7 +463,7 @@ async def save_deck_config(
     config_payload = _model_dump(
         normalized.config, by_alias=True, exclude_none=True
     )
-    save_result = await anki_services.anki_call(
+    save_result = await anki_client.anki_call(
         "saveDeckConfig", {"config": config_payload}
     )
 
@@ -480,7 +483,7 @@ async def save_deck_config(
             )
 
         set_payload = {"deck": deck_name, "configId": config_id}
-        set_result = await anki_services.anki_call("setDeckConfigId", set_payload)
+        set_result = await anki_client.anki_call("setDeckConfigId", set_payload)
         response.update({
             "deck": deck_name,
             "set_result": set_result,
@@ -492,18 +495,18 @@ async def save_deck_config(
 @app.tool(name="anki.rename_deck")
 async def rename_deck(args: RenameDeckArgs):
     payload = {"oldName": args.old_name, "newName": args.new_name}
-    return await anki_services.anki_call("renameDeck", payload)
+    return await anki_client.anki_call("renameDeck", payload)
 
 
 @app.tool(name="anki.delete_decks")
 async def delete_decks(args: DeleteDecksArgs):
     payload = {"decks": list(args.decks), "cardsToo": bool(args.cards_too)}
-    return await anki_services.anki_call("deleteDecks", payload)
+    return await anki_client.anki_call("deleteDecks", payload)
 
 
 @app.tool(name="anki.find_notes")
 async def find_notes(args: FindNotesArgs) -> FindNotesResponse:
-    raw_note_ids = await anki_services.anki_call("findNotes", {"query": args.query})
+    raw_note_ids = await anki_client.anki_call("findNotes", {"query": args.query})
     if not isinstance(raw_note_ids, list):
         raise ValueError("findNotes response must be a list of note ids")
 
@@ -529,8 +532,8 @@ async def find_notes(args: FindNotesArgs) -> FindNotesResponse:
 
     notes: List[Optional[NoteInfo]] = []
     if normalized_ids:
-        raw_notes = await anki_services.anki_call("notesInfo", {"notes": normalized_ids})
-        notes = anki_services.normalize_notes_info(raw_notes)
+        raw_notes = await anki_client.anki_call("notesInfo", {"notes": normalized_ids})
+        notes = notes_services.normalize_notes_info(raw_notes)
 
     return FindNotesResponse(note_ids=normalized_ids, notes=notes)
 
@@ -547,7 +550,7 @@ async def find_cards(
         except Exception as exc:
             raise ValueError(f"Invalid find_cards arguments: {exc}") from exc
 
-    raw_card_ids = await anki_services.anki_call(
+    raw_card_ids = await anki_client.anki_call(
         "findCards", {"query": normalized.query}
     )
     if not isinstance(raw_card_ids, list):
@@ -588,7 +591,7 @@ async def cards_info(
         except Exception as exc:
             raise ValueError(f"Invalid cards_info arguments: {exc}") from exc
 
-    raw_cards = await anki_services.anki_call(
+    raw_cards = await anki_client.anki_call(
         "cardsInfo", {"cards": normalized.card_ids}
     )
     if not isinstance(raw_cards, list):
@@ -622,7 +625,7 @@ async def cards_to_notes(
         except Exception as exc:
             raise ValueError(f"Invalid cards_to_notes arguments: {exc}") from exc
 
-    raw_response = await anki_services.anki_call(
+    raw_response = await anki_client.anki_call(
         "cardsToNotes", {"cards": normalized.card_ids}
     )
 
@@ -698,7 +701,7 @@ async def notes_to_cards(
         except Exception as exc:
             raise ValueError(f"Invalid notes_to_cards arguments: {exc}") from exc
 
-    raw_response = await anki_services.anki_call(
+    raw_response = await anki_client.anki_call(
         "notesToCards", {"notes": normalized.note_ids}
     )
 
@@ -781,7 +784,7 @@ async def notes_to_cards(
 @app.tool(name="anki.get_media")
 async def get_media(args: MediaRequest) -> MediaResponse:
     try:
-        raw_base64 = await anki_services.anki_call(
+        raw_base64 = await anki_client.anki_call(
             "retrieveMediaFile", {"filename": args.filename}
         )
     except Exception as exc:  # pragma: no cover - конкретные ошибки проверяются тестами
@@ -821,7 +824,7 @@ async def store_media(
     except (binascii.Error, ValueError) as exc:
         raise ValueError("data_base64 must be valid Base64-encoded string") from exc
 
-    anki_response = await anki_services.store_media_file(
+    anki_response = await anki_client.store_media_file(
         normalized.filename, normalized.data_base64
     )
 
@@ -833,15 +836,15 @@ async def store_media(
 
 @app.tool(name="anki.note_info")
 async def note_info(args: NoteInfoArgs) -> NoteInfoResponse:
-    raw_notes = await anki_services.anki_call("notesInfo", {"notes": args.note_ids})
-    normalized = anki_services.normalize_notes_info(raw_notes)
+    raw_notes = await anki_client.anki_call("notesInfo", {"notes": args.note_ids})
+    normalized = notes_services.normalize_notes_info(raw_notes)
     return NoteInfoResponse(notes=normalized)
 
 
 @app.tool(name="anki.delete_media")
 async def delete_media(args: DeleteMediaArgs) -> Dict[str, Any]:
     try:
-        raw_response = await anki_services.anki_call(
+        raw_response = await anki_client.anki_call(
             "deleteMediaFile", {"filename": args.filename}
         )
     except Exception as exc:  # pragma: no cover - конкретные ошибки проверяются тестами
@@ -884,7 +887,7 @@ async def add_from_model(
     deck = deck or config.DEFAULT_DECK
     model = model or config.DEFAULT_MODEL
 
-    await anki_services.anki_call("createDeck", {"deck": deck})
+    await anki_client.anki_call("createDeck", {"deck": deck})
 
     normalized_items: List[NoteInput] = []
     for index, raw_item in enumerate(items):
@@ -938,7 +941,7 @@ async def add_from_model(
             decks_to_create.add(note.deck)
 
     for deck_name in decks_to_create:
-        await anki_services.anki_call("createDeck", {"deck": deck_name})
+        await anki_client.anki_call("createDeck", {"deck": deck_name})
 
     notes_payload: List[dict] = []
     results: List[dict] = []
@@ -950,25 +953,25 @@ async def add_from_model(
 
         model_fields, field_aliases = await _ensure_model_context(note_model)
 
-        fields = anki_services.normalize_and_validate_note_fields(note.fields, model_fields)
+        fields = notes_services.normalize_and_validate_note_fields(note.fields, model_fields)
 
         for field_name, value in list(fields.items()):
             if field_name.lower() == "sources":
-                fields[field_name] = anki_services.auto_link_urls(value)
+                fields[field_name] = media_services.auto_link_urls(value)
 
-        await anki_services.process_data_urls_in_fields(fields, results, index)
+        await media_services.process_data_urls_in_fields(fields, results, index)
 
         for img in note.images:
             ext_hint: Optional[str] = None
             if img.image_base64:
                 try:
-                    data_b64, ext_hint = anki_services.sanitize_image_payload(img.image_base64)
+                    data_b64, ext_hint = media_services.sanitize_image_payload(img.image_base64)
                 except ValueError as exc:
                     results.append({"index": index, "warn": f"invalid_image_base64: {exc}"})
                     continue
             elif img.image_url:
                 try:
-                    data_b64 = await anki_services.fetch_image_as_base64(str(img.image_url), img.max_side)
+                    data_b64 = await media_services.fetch_image_as_base64(str(img.image_url), img.max_side)
                 except Exception as exc:
                     results.append({"index": index, "warn": f"fetch_image_failed: {exc}"})
                     continue
@@ -988,9 +991,9 @@ async def add_from_model(
                 )
                 continue
             try:
-                await anki_services.store_media_file(filename, data_b64)
+                await anki_client.store_media_file(filename, data_b64)
                 previous = fields[canonical_target]
-                fields[canonical_target] = anki_services.ensure_img_tag(previous, filename)
+                fields[canonical_target] = media_services.ensure_img_tag(previous, filename)
             except Exception as exc:
                 results.append({"index": index, "warn": f"store_media_failed: {exc}"})
 
@@ -1005,7 +1008,7 @@ async def add_from_model(
         )
 
     try:
-        response = await anki_services.anki_call("addNotes", {"notes": notes_payload})
+        response = await anki_client.anki_call("addNotes", {"notes": notes_payload})
         for idx, note_id in enumerate(response):
             dedup_key = normalized_items[idx].dedup_key
             if note_id is None:
@@ -1052,7 +1055,7 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
             decks_to_create.add(note.deck)
 
     for deck_name in decks_to_create:
-        await anki_services.anki_call("createDeck", {"deck": deck_name})
+        await anki_client.anki_call("createDeck", {"deck": deck_name})
 
     for index, note in enumerate(normalized_notes):
         note_deck = note.deck or args.deck
@@ -1060,25 +1063,25 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
 
         model_fields, canonical_field_map = await _ensure_model_context(note_model)
 
-        fields = anki_services.normalize_and_validate_note_fields(note.fields, model_fields)
+        fields = notes_services.normalize_and_validate_note_fields(note.fields, model_fields)
 
         for field_name, value in list(fields.items()):
             if field_name.lower() == "sources":
-                fields[field_name] = anki_services.auto_link_urls(value)
+                fields[field_name] = media_services.auto_link_urls(value)
 
-        await anki_services.process_data_urls_in_fields(fields, results, index)
+        await media_services.process_data_urls_in_fields(fields, results, index)
 
         for img in note.images:
             ext_hint: Optional[str] = None
             if img.image_base64:
                 try:
-                    data_b64, ext_hint = anki_services.sanitize_image_payload(img.image_base64)
+                    data_b64, ext_hint = media_services.sanitize_image_payload(img.image_base64)
                 except ValueError as exc:
                     results.append({"index": index, "warn": f"invalid_image_base64: {exc}"})
                     continue
             elif img.image_url:
                 try:
-                    data_b64 = await anki_services.fetch_image_as_base64(str(img.image_url), img.max_side)
+                    data_b64 = await media_services.fetch_image_as_base64(str(img.image_url), img.max_side)
                 except Exception as exc:
                     results.append({"index": index, "warn": f"fetch_image_failed: {exc}"})
                     continue
@@ -1096,9 +1099,9 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
                     f"Allowed fields: [{allowed_fields}]"
                 )
             try:
-                await anki_services.store_media_file(filename, data_b64)
+                await anki_client.store_media_file(filename, data_b64)
                 previous = fields[canonical_target]
-                fields[canonical_target] = anki_services.ensure_img_tag(previous, filename)
+                fields[canonical_target] = media_services.ensure_img_tag(previous, filename)
             except Exception as exc:
                 results.append({"index": index, "warn": f"store_media_failed: {exc}"})
 
@@ -1113,7 +1116,7 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
         )
 
     try:
-        response = await anki_services.anki_call("addNotes", {"notes": notes_payload})
+        response = await anki_client.anki_call("addNotes", {"notes": notes_payload})
         for idx, note_id in enumerate(response):
             dedup_key = normalized_notes[idx].dedup_key
             if note_id is None:
@@ -1137,8 +1140,8 @@ async def add_notes(args: AddNotesArgs) -> AddNotesResult:
 @app.tool(name="anki.update_notes")
 async def update_notes(args: UpdateNotesArgs) -> UpdateNotesResult:
     note_ids = [note.note_id for note in args.notes]
-    raw_notes = await anki_services.anki_call("notesInfo", {"notes": note_ids})
-    normalized_notes = anki_services.normalize_notes_info(raw_notes)
+    raw_notes = await anki_client.anki_call("notesInfo", {"notes": note_ids})
+    normalized_notes = notes_services.normalize_notes_info(raw_notes)
 
     info_by_id: Dict[int, Optional[NoteInfo]] = {}
     for requested_id, note_info in zip(note_ids, normalized_notes):
@@ -1206,7 +1209,7 @@ async def update_notes(args: UpdateNotesArgs) -> UpdateNotesResult:
                 raw_fields[str(raw_key)] = normalized_value
 
             normalized, matched_count, unknown_fields = (
-                anki_services.normalize_fields_for_model(raw_fields, model_fields)
+                notes_services.normalize_fields_for_model(raw_fields, model_fields)
             )
 
             if unknown_fields:
@@ -1232,7 +1235,7 @@ async def update_notes(args: UpdateNotesArgs) -> UpdateNotesResult:
                         fields_payload[canonical] = normalized.get(canonical, value)
                         updated_fields.append(canonical)
 
-        await anki_services.process_data_urls_in_fields(
+        await media_services.process_data_urls_in_fields(
             fields_payload, detail_logs, index
         )
 
@@ -1240,7 +1243,7 @@ async def update_notes(args: UpdateNotesArgs) -> UpdateNotesResult:
             ext_hint: Optional[str] = None
             if img.image_base64:
                 try:
-                    data_b64, ext_hint = anki_services.sanitize_image_payload(
+                    data_b64, ext_hint = media_services.sanitize_image_payload(
                         img.image_base64
                     )
                 except ValueError as exc:
@@ -1253,7 +1256,7 @@ async def update_notes(args: UpdateNotesArgs) -> UpdateNotesResult:
                     continue
             elif img.image_url:
                 try:
-                    data_b64 = await anki_services.fetch_image_as_base64(
+                    data_b64 = await media_services.fetch_image_as_base64(
                         str(img.image_url), img.max_side
                     )
                 except Exception as exc:  # pragma: no cover - network failures
@@ -1282,8 +1285,8 @@ async def update_notes(args: UpdateNotesArgs) -> UpdateNotesResult:
                 (info.fields or {}).get(canonical_target, ""),
             )
             try:
-                await anki_services.store_media_file(filename, data_b64)
-                fields_payload[canonical_target] = anki_services.ensure_img_tag(
+                await anki_client.store_media_file(filename, data_b64)
+                fields_payload[canonical_target] = media_services.ensure_img_tag(
                     previous, filename
                 )
                 updated_fields.append(canonical_target)
@@ -1296,7 +1299,7 @@ async def update_notes(args: UpdateNotesArgs) -> UpdateNotesResult:
 
         try:
             if fields_payload:
-                await anki_services.anki_call(
+                await anki_client.anki_call(
                     "updateNoteFields",
                     {"note": {"id": update.note_id, "fields": fields_payload}},
                 )
@@ -1304,7 +1307,7 @@ async def update_notes(args: UpdateNotesArgs) -> UpdateNotesResult:
 
             if update.add_tags:
                 tags_payload = " ".join(update.add_tags)
-                await anki_services.anki_call(
+                await anki_client.anki_call(
                     "addTags", {"notes": [update.note_id], "tags": tags_payload}
                 )
                 detail["addedTags"] = update.add_tags
@@ -1312,7 +1315,7 @@ async def update_notes(args: UpdateNotesArgs) -> UpdateNotesResult:
 
             if update.remove_tags:
                 tags_payload = " ".join(update.remove_tags)
-                await anki_services.anki_call(
+                await anki_client.anki_call(
                     "removeTags",
                     {"notes": [update.note_id], "tags": tags_payload},
                 )
@@ -1322,7 +1325,7 @@ async def update_notes(args: UpdateNotesArgs) -> UpdateNotesResult:
             if update.deck and update.deck != deck_name:
                 cards = info.cards or []
                 if cards:
-                    await anki_services.anki_call(
+                    await anki_client.anki_call(
                         "changeDeck", {"cards": cards, "deck": update.deck}
                     )
                     detail["deckChangedTo"] = update.deck
@@ -1367,7 +1370,7 @@ async def delete_notes(args: DeleteNotesArgs) -> DeleteNotesResult:
         raise ValueError("note_ids must contain at least one id")
 
     try:
-        response = await anki_services.anki_call("deleteNotes", {"notes": note_ids})
+        response = await anki_client.anki_call("deleteNotes", {"notes": note_ids})
     except Exception as exc:  # pragma: no cover - defensive, exercised via tests with raising mocks
         raise RuntimeError(f"deleteNotes_failed: {exc}") from exc
 

@@ -63,7 +63,7 @@ def test_get_deck_config_payload(monkeypatch):
         assert params == {"deck": "Default"}
         return SAMPLE_DECK_CONFIG_RAW
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     get_deck_config_fn = deck_helpers._unwrap_tool(get_deck_config)
     args = GetDeckConfigArgs(deck="Default")
@@ -82,7 +82,7 @@ def test_get_deck_config_invalid_response(monkeypatch):
         assert action == "getDeckConfig"
         return "not-a-mapping"
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     get_deck_config_fn = deck_helpers._unwrap_tool(get_deck_config)
 
@@ -107,7 +107,7 @@ def test_save_deck_config_updates_and_assigns(monkeypatch):
             return {"applied": True}
         raise AssertionError(f"unexpected action {action}")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     save_deck_config_fn = deck_helpers._unwrap_tool(save_deck_config)
     args = SaveDeckConfigArgs(config=config, deck="Inbox")
@@ -135,7 +135,7 @@ def test_save_deck_config_requires_id_for_assignment(monkeypatch):
         assert action == "saveDeckConfig"
         return None
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", fake_anki_call)
 
     save_deck_config_fn = deck_helpers._unwrap_tool(save_deck_config)
 
@@ -150,7 +150,7 @@ def test_save_deck_config_validation_error(monkeypatch):
     async def forbidden_call(action, params):
         raise AssertionError("anki_call should not be invoked on validation errors")
 
-    monkeypatch.setattr("anki_mcp.services.anki.anki_call", forbidden_call)
+    monkeypatch.setattr("anki_mcp.services.client.anki_call", forbidden_call)
 
     save_deck_config_fn = deck_helpers._unwrap_tool(save_deck_config)
 

@@ -135,7 +135,7 @@ async def test_add_tools_follow_reloaded_defaults(monkeypatch):
             raise AssertionError(f"Unexpected action for add_from_model: {action}")
 
         monkeypatch.setattr(
-            "anki_mcp.services.anki.anki_call", fake_anki_call_model
+            "anki_mcp.services.client.anki_call", fake_anki_call_model
         )
 
         note = module.NoteInput(Front="Q", Back="A")
@@ -160,7 +160,7 @@ async def test_add_tools_follow_reloaded_defaults(monkeypatch):
             raise AssertionError(f"Unexpected action for add_notes: {action}")
 
         monkeypatch.setattr(
-            "anki_mcp.services.anki.anki_call", fake_anki_call_notes
+            "anki_mcp.services.client.anki_call", fake_anki_call_notes
         )
 
         second_note = module.NoteInput(Front="Q2", Back="A2")

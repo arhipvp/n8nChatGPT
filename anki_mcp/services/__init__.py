@@ -1,6 +1,6 @@
 """Прикладные сервисы MCP-сервера."""
 
-from . import anki, search
+from . import anki, client, media, notes, search
 
 
-__all__ = ["anki", "search"]
+__all__ = ["anki", "client", "media", "notes", "search"]
