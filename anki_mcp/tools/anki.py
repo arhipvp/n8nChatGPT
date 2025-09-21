@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import uuid
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
@@ -13,8 +15,11 @@ from ..schemas import (
     AddNotesResult,
     DeckInfo,
     DeleteDecksArgs,
+    DeleteMediaArgs,
     DeleteNotesArgs,
     DeleteNotesResult,
+    MediaRequest,
+    MediaResponse,
     CardTemplateSpec,
     CreateModelArgs,
     CreateModelResult,
@@ -42,6 +47,31 @@ def _normalize_template(template: CardTemplateSpec) -> Dict[str, str]:
         "Front": template.front,
         "Back": template.back,
     }
+
+
+def _normalize_media_error(filename: str, exc: Exception) -> Exception:
+    message = str(exc)
+    lowered = message.lower()
+    markers = (
+        "not found",
+        "does not exist",
+        "no such file",
+        "missing",
+    )
+    if any(marker in lowered for marker in markers):
+        return FileNotFoundError(f"Media file {filename!r} not found")
+    return exc
+
+
+def _calculate_media_size(data_base64: str) -> Optional[int]:
+    try:
+        raw = base64.b64decode(data_base64, validate=True)
+    except (binascii.Error, ValueError):
+        try:
+            raw = base64.b64decode(data_base64, validate=False)
+        except Exception:
+            return None
+    return len(raw)
 
 
 @app.tool(name="anki.invoke")
@@ -206,11 +236,61 @@ async def find_notes(args: FindNotesArgs) -> FindNotesResponse:
     return FindNotesResponse(note_ids=normalized_ids, notes=notes)
 
 
+@app.tool(name="anki.get_media")
+async def get_media(args: MediaRequest) -> MediaResponse:
+    try:
+        raw_base64 = await anki_services.anki_call(
+            "retrieveMediaFile", {"filename": args.filename}
+        )
+    except Exception as exc:  # pragma: no cover - конкретные ошибки проверяются тестами
+        normalized_exc = _normalize_media_error(args.filename, exc)
+        if normalized_exc is exc:
+            raise
+        raise normalized_exc from exc
+
+    if not isinstance(raw_base64, str):
+        raise ValueError("retrieveMediaFile response must be a base64 string")
+
+    size_bytes = _calculate_media_size(raw_base64)
+    return MediaResponse(
+        filename=args.filename,
+        data_base64=raw_base64,
+        size_bytes=size_bytes,
+    )
+
+
 @app.tool(name="anki.note_info")
 async def note_info(args: NoteInfoArgs) -> NoteInfoResponse:
     raw_notes = await anki_services.anki_call("notesInfo", {"notes": args.note_ids})
     normalized = anki_services.normalize_notes_info(raw_notes)
     return NoteInfoResponse(notes=normalized)
+
+
+@app.tool(name="anki.delete_media")
+async def delete_media(args: DeleteMediaArgs) -> Dict[str, Any]:
+    try:
+        raw_response = await anki_services.anki_call(
+            "deleteMediaFile", {"filename": args.filename}
+        )
+    except Exception as exc:  # pragma: no cover - конкретные ошибки проверяются тестами
+        normalized_exc = _normalize_media_error(args.filename, exc)
+        if normalized_exc is exc:
+            raise
+        raise normalized_exc from exc
+
+    deleted: bool
+    if isinstance(raw_response, Mapping):
+        deleted = bool(raw_response.get("deleted", True))
+    elif isinstance(raw_response, list):
+        deleted = all(bool(item) for item in raw_response)
+    else:
+        deleted = raw_response in (None, True)
+
+    return {
+        "filename": args.filename,
+        "deleted": deleted,
+        "anki_response": raw_response,
+    }
 
 
 @app.tool(name="anki.model_info")
