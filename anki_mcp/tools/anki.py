@@ -14,6 +14,7 @@ from ..schemas import (
     CardTemplateSpec,
     CreateModelArgs,
     CreateModelResult,
+    InvokeActionArgs,
     FindNotesArgs,
     FindNotesResponse,
     ModelInfo,
@@ -35,6 +36,37 @@ def _normalize_template(template: CardTemplateSpec) -> Dict[str, str]:
         "Front": template.front,
         "Back": template.back,
     }
+
+
+@app.tool(name="anki.invoke")
+async def invoke_action(args: InvokeActionArgs) -> Any:
+    params_payload: Dict[str, Any]
+    if args.params is None:
+        params_payload = {}
+    elif isinstance(args.params, dict):
+        params_payload = dict(args.params)
+    elif isinstance(args.params, Mapping):
+        params_payload = dict(args.params)
+    else:
+        raise TypeError("params must be a mapping of argument names to values")
+
+    if args.version is None:
+        version = 6
+    elif isinstance(args.version, bool) or not isinstance(args.version, int):
+        raise TypeError("version must be an integer")
+    else:
+        version = args.version
+
+    payload = {
+        "action": args.action,
+        "version": version,
+        "params": params_payload,
+    }
+
+    result = await anki_services.anki_call(
+        payload["action"], payload["params"], version=payload["version"]
+    )
+    return result
 
 
 @app.tool(name="anki.create_model")
@@ -618,6 +650,7 @@ async def update_notes(args: UpdateNotesArgs) -> UpdateNotesResult:
 
 
 __all__ = [
+    "invoke_action",
     "add_from_model",
     "add_notes",
     "create_model",
