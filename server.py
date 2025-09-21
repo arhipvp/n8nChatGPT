@@ -15,6 +15,7 @@ from anki_mcp import (
     CardTemplateSpec,
     CreateModelArgs,
     CreateModelResult,
+    UpdateModelTemplatesArgs,
     InvokeActionArgs,
     FindNotesArgs,
     FindNotesResponse,
@@ -63,6 +64,7 @@ from anki_mcp.tools import (
     model_info,
     note_info,
     rename_deck,
+    update_model_templates,
     update_notes,
 )
 from anki_mcp.tools.misc import greet
@@ -122,6 +124,7 @@ __all__ = [
     "CardTemplateSpec",
     "CreateModelArgs",
     "CreateModelResult",
+    "UpdateModelTemplatesArgs",
     "InvokeActionArgs",
     "FindNotesArgs",
     "FindNotesResponse",
@@ -151,6 +154,7 @@ __all__ = [
     "add_from_model",
     "add_notes",
     "create_model",
+    "update_model_templates",
     "delete_decks",
     "delete_media",
     "delete_notes",
