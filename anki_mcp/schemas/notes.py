@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Mapping
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable as TypingIterable, List, Optional
 
 from ..compat import (
     BaseModel,
@@ -90,6 +90,38 @@ def _normalize_note_input_tags(raw_tags: Any) -> List[str]:
             normalized.append(text)
 
     _consume(raw_tags)
+    return normalized
+
+
+def _normalize_card_ids(raw_ids: Any) -> List[int]:
+    if raw_ids is None:
+        return []
+
+    if isinstance(raw_ids, Mapping):
+        values = list(raw_ids.values())
+    else:
+        values = raw_ids
+
+    if isinstance(values, (str, bytes)):
+        raise TypeError("card_ids must be a sequence of integers")
+
+    if not isinstance(values, TypingIterable):
+        raise TypeError("card_ids must be a sequence of integers")
+
+    normalized: List[int] = []
+    for index, raw_id in enumerate(values):
+        if isinstance(raw_id, bool):
+            raise ValueError(
+                f"card_ids must contain integers, got boolean at index {index}"
+            )
+        try:
+            card_id = int(raw_id)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"card_ids must contain integers, got {raw_id!r} at index {index}"
+            ) from exc
+        normalized.append(card_id)
+
     return normalized
 
 
@@ -266,6 +298,35 @@ class FindNotesResponse(BaseModel):
             allow_population_by_field_name = True
 
 
+class FindCardsArgs(BaseModel):
+    query: constr(strip_whitespace=True, min_length=1)
+    limit: Optional[int] = Field(default=None, ge=1)
+    offset: Optional[int] = Field(default=0, ge=0)
+
+
+class FindCardsResponse(BaseModel):
+    card_ids: List[int] = Field(default_factory=list, alias="cardIds")
+
+    if ConfigDict is not None:  # pragma: no branch
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover
+        class Config:
+            allow_population_by_field_name = True
+
+    if field_validator is not None:  # pragma: no branch
+
+        @field_validator("card_ids", mode="before")  # type: ignore[misc]
+        @classmethod
+        def _normalize_card_ids_field(cls, value):
+            return _normalize_card_ids(value)
+
+    elif validator is not None:  # pragma: no cover
+
+        @validator("card_ids", pre=True)  # type: ignore[misc]
+        def _normalize_card_ids_field(cls, value):  # type: ignore[override]
+            return _normalize_card_ids(value)
+
+
 class ModelInfo(BaseModel):
     model: str
     fields: List[str]
@@ -278,6 +339,8 @@ __all__ = [
     "AddNotesResult",
     "DeleteNotesArgs",
     "DeleteNotesResult",
+    "FindCardsArgs",
+    "FindCardsResponse",
     "FindNotesArgs",
     "FindNotesResponse",
     "ModelInfo",
