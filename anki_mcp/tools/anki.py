@@ -11,6 +11,9 @@ from .. import config
 from ..schemas import (
     AddNotesArgs,
     AddNotesResult,
+    CardTemplateSpec,
+    CreateModelArgs,
+    CreateModelResult,
     FindNotesArgs,
     FindNotesResponse,
     ModelInfo,
@@ -24,6 +27,66 @@ from ..schemas import (
     UpdateNotesResult,
 )
 from ..services import anki as anki_services
+
+
+def _normalize_template(template: CardTemplateSpec) -> Dict[str, str]:
+    return {
+        "Name": template.name,
+        "Front": template.front,
+        "Back": template.back,
+    }
+
+
+@app.tool(name="anki.create_model")
+async def create_model(
+    args: Union[CreateModelArgs, Mapping[str, Any]]
+) -> CreateModelResult:
+    if isinstance(args, CreateModelArgs):
+        normalized = args
+    else:
+        try:
+            normalized = model_validate(CreateModelArgs, args)
+        except Exception as exc:
+            raise ValueError(f"Invalid create_model arguments: {exc}") from exc
+
+    reserved = {"modelName", "inOrderFields", "cardTemplates", "css"}
+    extra_options = dict(normalized.options)
+    for key in extra_options:
+        if key in reserved:
+            raise ValueError(
+                f"options cannot override reserved parameter {key!r}"
+            )
+
+    payload = {
+        "modelName": normalized.model_name,
+        "inOrderFields": normalized.in_order_fields,
+        "cardTemplates": [
+            _normalize_template(template) for template in normalized.card_templates
+        ],
+        "css": normalized.css,
+    }
+
+    if normalized.is_cloze is not None:
+        existing = extra_options.get("isCloze")
+        if existing is not None and existing != normalized.is_cloze:
+            raise ValueError(
+                "is_cloze conflicts with options['isCloze'] value"
+            )
+        payload["isCloze"] = normalized.is_cloze
+        extra_options["isCloze"] = normalized.is_cloze
+
+    payload.update(extra_options)
+
+    anki_response = await anki_services.anki_call("createModel", payload)
+
+    return CreateModelResult(
+        model_name=normalized.model_name,
+        in_order_fields=normalized.in_order_fields,
+        card_templates=list(normalized.card_templates),
+        css=normalized.css,
+        options=extra_options,
+        anki_response=anki_response,
+    )
 
 
 @app.tool(name="anki.find_notes")
@@ -557,6 +620,7 @@ async def update_notes(args: UpdateNotesArgs) -> UpdateNotesResult:
 __all__ = [
     "add_from_model",
     "add_notes",
+    "create_model",
     "find_notes",
     "model_info",
     "note_info",

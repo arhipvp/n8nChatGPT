@@ -103,6 +103,33 @@
   - `templates: Dict[str, Dict[str, str]]` — шаблоны карточек вида `{ "Card 1": { "Front": "...", "Back": "..." } }`.
   - `styling: str` — CSS-маркировка модели.
 
+### `CardTemplateSpec`
+- **Назначение:** описывает шаблон карточки новой модели.
+- **Поля:**
+  - `name: str` — название карточки (например, `"Card 1"`).
+  - `front: str` — HTML-шаблон лицевой стороны.
+  - `back: str` — HTML-шаблон оборотной стороны.
+
+### `CreateModelArgs`
+- **Используется в:** `anki.create_model`.
+- **Поля:**
+  - `model_name: str` — название новой модели.
+  - `in_order_fields: List[str]` — имена полей в нужном порядке (минимум одно значение).
+  - `card_templates: List[CardTemplateSpec]` — набор карточек (минимум одна запись).
+  - `css: str` — CSS-оформление модели (опционально, по умолчанию пустая строка).
+  - `is_cloze: bool | None` — флаг создания модели типа Cloze.
+  - `options: Dict[str, Any]` — дополнительные параметры AnkiConnect (например, `latexPre`/`latexPost`).
+
+### `CreateModelResult`
+- **Используется в:** `anki.create_model`.
+- **Поля:**
+  - `model_name: str` — итоговое имя модели.
+  - `in_order_fields: List[str]` — список полей, переданный в AnkiConnect.
+  - `card_templates: List[CardTemplateSpec]` — шаблоны карточек, использованные при создании модели.
+  - `css: str` — итоговый CSS.
+  - `options: Dict[str, Any]` — фактически переданные дополнительные параметры.
+  - `anki_response: Any` — ответ AnkiConnect (обычно `null`, если ошибок не возникло).
+
 ### `SearchRequest`
 - **Используется в:** `search`.
 - **Поля:**
@@ -160,6 +187,53 @@
 
 > **Важно.** Клиент должен передавать значения полей строго в порядке `Prompt`, `Response`, `Context`, `Sources`. Шаблон фронта включает вызов `{{tts de_DE voices=AwesomeTTS:Prompt}}`, поэтому в Anki должен быть настроен профиль AwesomeTTS, который озвучивает поле `Prompt`.
 
+
+### `anki.create_model`
+- **Назначение:** создать новую модель в Anki с заданными полями, шаблонами карточек и CSS.
+- **Параметры:** объект `CreateModelArgs` (см. выше). Значения можно указывать как в snake_case (`model_name`), так и в стиле AnkiConnect (`modelName`, `inOrderFields`, `cardTemplates`). Ключ `options` позволяет передать дополнительные параметры, поддерживаемые AnkiConnect (например, `latexPre`).
+- **Ответ:** объект `CreateModelResult`. Поле `anki_response` содержит «сырой» результат AnkiConnect (`null`, если модель создана успешно).
+- **Пример запроса:**
+```json
+{
+  "name": "anki.create_model",
+  "arguments": {
+    "modelName": "Custom QA",
+    "inOrderFields": ["Question", "Answer", "Context"],
+    "cardTemplates": [
+      {
+        "name": "Card 1",
+        "front": "<div class=\"question\">{{Question}}</div>",
+        "back": "{{FrontSide}}\n<hr id=\"answer\">\n<div class=\"answer\">{{Answer}}</div>{{#Context}}\n<div class=\"context\">{{Context}}</div>{{/Context}}"
+      }
+    ],
+    "css": ".card {\n  font-family: 'Inter', sans-serif;\n  font-size: 22px;\n}\n.question {\n  font-weight: 600;\n}\n.answer {\n  color: #1a202c;\n}\n.context {\n  color: #4a5568;\n  font-style: italic;\n}",
+    "isCloze": false,
+    "options": {
+      "latexPre": "\\documentclass{article}"
+    }
+  }
+}
+```
+- **Пример ответа:**
+```json
+{
+  "model_name": "Custom QA",
+  "in_order_fields": ["Question", "Answer", "Context"],
+  "card_templates": [
+    {
+      "name": "Card 1",
+      "front": "<div class=\"question\">{{Question}}</div>",
+      "back": "{{FrontSide}}\n<hr id=\"answer\">\n<div class=\"answer\">{{Answer}}</div>{{#Context}}\n<div class=\"context\">{{Context}}</div>{{/Context}}"
+    }
+  ],
+  "css": ".card {\n  font-family: 'Inter', sans-serif;\n  font-size: 22px;\n}\n.question {\n  font-weight: 600;\n}\n.answer {\n  color: #1a202c;\n}\n.context {\n  color: #4a5568;\n  font-style: italic;\n}",
+  "options": {
+    "latexPre": "\\documentclass{article}",
+    "isCloze": false
+  },
+  "anki_response": null
+}
+```
 
 ### `anki.add_from_model`
 - **Назначение:** добавить заметки в указанную колоду с учётом текущих полей и шаблонов модели. Инструмент сам загружает структуру модели, нормализует `fields` и обрабатывает вложенные изображения.

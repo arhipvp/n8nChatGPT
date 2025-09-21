@@ -1,6 +1,7 @@
 """Публичный интерфейс схем MCP-сервера."""
 
 from .images import ImageSpec
+from .models import CardTemplateSpec, CreateModelArgs, CreateModelResult
 from .notes import (
     AddNotesArgs,
     AddNotesResult,
@@ -20,6 +21,9 @@ from .search import SearchRequest, SearchResponse, SearchResult
 
 
 __all__ = [
+    "CardTemplateSpec",
+    "CreateModelArgs",
+    "CreateModelResult",
     "AddNotesArgs",
     "AddNotesResult",
     "FindNotesArgs",
