@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .. import app
 from ..compat import model_validate
-from ..config import DEFAULT_DECK, DEFAULT_MODEL
+from .. import config
 from ..schemas import (
     AddNotesArgs,
     AddNotesResult,
@@ -65,19 +65,23 @@ async def note_info(args: NoteInfoArgs) -> NoteInfoResponse:
 
 
 @app.tool(name="anki.model_info")
-async def model_info(model: str = DEFAULT_MODEL) -> ModelInfo:
-    fields, templates, css = await anki_services.get_model_fields_templates(model)
-    return ModelInfo(model=model, fields=fields, templates=templates, styling=css)
+async def model_info(model: Optional[str] = None) -> ModelInfo:
+    target_model = model or config.DEFAULT_MODEL
+    fields, templates, css = await anki_services.get_model_fields_templates(target_model)
+    return ModelInfo(model=target_model, fields=fields, templates=templates, styling=css)
 
 
 @app.tool(name="anki.add_from_model")
 async def add_from_model(
-    deck: str = DEFAULT_DECK,
-    model: str = DEFAULT_MODEL,
+    deck: Optional[str] = None,
+    model: Optional[str] = None,
     items: Optional[List[Union[NoteInput, Dict[str, str]]]] = None,
 ) -> AddNotesResult:
     if items is None:
         raise ValueError("items must be provided")
+
+    deck = deck or config.DEFAULT_DECK
+    model = model or config.DEFAULT_MODEL
 
     await anki_services.anki_call("createDeck", {"deck": deck})
 
