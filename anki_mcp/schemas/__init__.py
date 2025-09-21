@@ -6,6 +6,8 @@ from .models import CardTemplateSpec, CreateModelArgs, CreateModelResult
 from .notes import (
     AddNotesArgs,
     AddNotesResult,
+    DeleteNotesArgs,
+    DeleteNotesResult,
     FindNotesArgs,
     FindNotesResponse,
     ModelInfo,
@@ -28,6 +30,8 @@ __all__ = [
     "InvokeActionArgs",
     "AddNotesArgs",
     "AddNotesResult",
+    "DeleteNotesArgs",
+    "DeleteNotesResult",
     "FindNotesArgs",
     "FindNotesResponse",
     "ImageSpec",

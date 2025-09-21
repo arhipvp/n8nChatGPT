@@ -11,6 +11,8 @@ from .. import config
 from ..schemas import (
     AddNotesArgs,
     AddNotesResult,
+    DeleteNotesArgs,
+    DeleteNotesResult,
     CardTemplateSpec,
     CreateModelArgs,
     CreateModelResult,
@@ -649,11 +651,139 @@ async def update_notes(args: UpdateNotesArgs) -> UpdateNotesResult:
     return UpdateNotesResult(updated=updated, skipped=skipped, details=details)
 
 
+@app.tool(name="anki.delete_notes")
+async def delete_notes(args: DeleteNotesArgs) -> DeleteNotesResult:
+    note_ids = list(args.note_ids)
+    if not note_ids:
+        raise ValueError("note_ids must contain at least one id")
+
+    try:
+        response = await anki_services.anki_call("deleteNotes", {"notes": note_ids})
+    except Exception as exc:  # pragma: no cover - defensive, exercised via tests with raising mocks
+        raise RuntimeError(f"deleteNotes_failed: {exc}") from exc
+
+    deleted = 0
+    missing = 0
+
+    def _coerce_count(value: Any) -> int:
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, (int, float)):
+            return int(value)
+        if value in (None, ""):
+            return 0
+        try:
+            return int(str(value))
+        except (TypeError, ValueError):
+            return 1
+
+    def _consume(item: Any) -> None:
+        nonlocal deleted, missing
+
+        if item is None:
+            return
+
+        if isinstance(item, Mapping):
+            results = item.get("results")
+            if isinstance(results, (list, tuple, set)):
+                for sub in results:
+                    _consume(sub)
+
+            notes = item.get("notes")
+            if isinstance(notes, (list, tuple, set)):
+                for sub in notes:
+                    _consume(sub)
+
+            if "deleted" in item:
+                deleted += max(_coerce_count(item.get("deleted")), 0)
+            if "success" in item:
+                deleted += max(_coerce_count(item.get("success")), 0)
+            if "removed" in item:
+                deleted += max(_coerce_count(item.get("removed")), 0)
+
+            if "missing" in item:
+                missing += max(_coerce_count(item.get("missing")), 0)
+            if "skipped" in item:
+                missing += max(_coerce_count(item.get("skipped")), 0)
+            if "failed" in item:
+                missing += max(_coerce_count(item.get("failed")), 0)
+            if "notFound" in item:
+                missing += max(_coerce_count(item.get("notFound")), 0)
+            if "not_found" in item:
+                missing += max(_coerce_count(item.get("not_found")), 0)
+
+            status = item.get("status")
+            if isinstance(status, str):
+                lowered = status.lower()
+                if lowered in {"ok", "deleted", "success"}:
+                    deleted += 1
+                elif lowered in {"missing", "skipped", "not_found", "notfound", "failed"}:
+                    missing += 1
+
+            return
+
+        if isinstance(item, (list, tuple, set)):
+            for sub in item:
+                _consume(sub)
+            return
+
+        if isinstance(item, bool):
+            if item:
+                deleted += 1
+            else:
+                missing += 1
+            return
+
+        if isinstance(item, (int, float)):
+            count = int(item)
+            if count > 0:
+                deleted += count
+            elif count < 0:
+                missing += abs(count)
+            return
+
+        if isinstance(item, str):
+            if item.strip():
+                deleted += 1
+            else:
+                missing += 1
+            return
+
+        if item:
+            deleted += 1
+        else:
+            missing += 1
+
+    if response is None:
+        deleted = len(note_ids)
+    else:
+        _consume(response)
+
+    if deleted < 0:
+        deleted = 0
+    if missing < 0:
+        missing = 0
+
+    processed = deleted + missing
+    if processed < len(note_ids):
+        missing += len(note_ids) - processed
+    elif processed > len(note_ids):
+        overflow = processed - len(note_ids)
+        if missing >= overflow:
+            missing -= overflow
+        else:
+            deleted = max(deleted - (overflow - missing), 0)
+            missing = 0
+
+    return DeleteNotesResult(deleted=deleted, missing=missing)
+
+
 __all__ = [
     "invoke_action",
     "add_from_model",
     "add_notes",
     "create_model",
+    "delete_notes",
     "find_notes",
     "model_info",
     "note_info",
