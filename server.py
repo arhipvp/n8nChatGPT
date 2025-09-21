@@ -594,6 +594,12 @@ class NoteInfoArgs(BaseModel):
             allow_population_by_field_name = True
 
 
+class FindNotesArgs(BaseModel):
+    query: constr(strip_whitespace=True, min_length=1)
+    limit: Optional[int] = Field(default=None, ge=1)
+    offset: Optional[int] = Field(default=0, ge=0)
+
+
 class NoteInfo(BaseModel):
     note_id: int = Field(alias="noteId")
     model_name: Optional[str] = Field(default=None, alias="modelName")
@@ -611,6 +617,17 @@ class NoteInfo(BaseModel):
 
 class NoteInfoResponse(BaseModel):
     notes: List[Optional[NoteInfo]] = Field(default_factory=list)
+
+
+class FindNotesResponse(BaseModel):
+    note_ids: List[int] = Field(default_factory=list, alias="noteIds")
+    notes: List[Optional[NoteInfo]] = Field(default_factory=list)
+
+    if ConfigDict is not None:  # pragma: no branch
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover
+        class Config:
+            allow_population_by_field_name = True
 
 
 class ModelInfo(BaseModel):
@@ -1079,6 +1096,40 @@ async def search(request: SearchRequest) -> SearchResponse:
 
 
 # ======================== ИНСТРУМЕНТЫ ========================
+
+
+@app.tool(name="anki.find_notes")
+async def find_notes(args: FindNotesArgs) -> FindNotesResponse:
+    raw_note_ids = await anki_call("findNotes", {"query": args.query})
+    if not isinstance(raw_note_ids, list):
+        raise ValueError("findNotes response must be a list of note ids")
+
+    normalized_ids: List[int] = []
+    for index, raw_id in enumerate(raw_note_ids):
+        if isinstance(raw_id, bool):
+            raise ValueError(
+                f"findNotes returned non-integer value at index {index}: {raw_id!r}"
+            )
+        try:
+            note_id = int(raw_id)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"findNotes returned non-integer value at index {index}: {raw_id!r}"
+            ) from None
+        normalized_ids.append(note_id)
+
+    offset = args.offset or 0
+    if offset:
+        normalized_ids = normalized_ids[offset:]
+    if args.limit is not None:
+        normalized_ids = normalized_ids[: args.limit]
+
+    notes: List[Optional[NoteInfo]] = []
+    if normalized_ids:
+        raw_notes = await anki_call("notesInfo", {"notes": normalized_ids})
+        notes = _normalize_notes_info(raw_notes)
+
+    return FindNotesResponse(note_ids=normalized_ids, notes=notes)
 
 
 @app.tool(name="anki.note_info")
