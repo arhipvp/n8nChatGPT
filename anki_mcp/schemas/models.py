@@ -240,15 +240,31 @@ class UpdateModelTemplatesArgs(BaseModel):
         if value is None:
             raise TypeError("templates must be a mapping of template names to specs")
         if isinstance(value, Mapping):
-            return {str(key): val for key, val in value.items()}
+            return {
+                str(key): cls._ensure_template_name(str(key), val)
+                for key, val in value.items()
+            }
         if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
             try:
-                return {str(key): val for key, val in value}
+                return {
+                    str(key): cls._ensure_template_name(str(key), val)
+                    for key, val in value
+                }
             except (TypeError, ValueError):  # pragma: no cover - защитный код
                 raise TypeError(
                     "templates must be a mapping of template names to specs"
                 ) from None
         raise TypeError("templates must be a mapping of template names to specs")
+
+    @staticmethod
+    def _ensure_template_name(key: str, template: Any) -> Any:
+        if isinstance(template, Mapping):
+            has_name_key = any(str(existing_key).lower() == "name" for existing_key in template)
+            if not has_name_key:
+                template_with_name = dict(template)
+                template_with_name.setdefault("name", key)
+                return template_with_name
+        return template
 
 
 class CreateModelResult(BaseModel):

@@ -209,7 +209,9 @@
   - `model_name: str` — имя существующей модели Anki, шаблоны которой нужно изменить.
   - `templates: Dict[str, CardTemplateSpec]` — новый набор шаблонов карточек. Ключ словаря должен
     совпадать с именем шаблона (`CardTemplateSpec.name`), а значения допускают как snake_case (`front`,
-    `back`, `name`), так и привычные для AnkiConnect ключи (`Front`, `Back`, `Name`).
+    `back`, `name`), так и привычные для AnkiConnect ключи (`Front`, `Back`, `Name`). Поле `name`
+    можно опустить: оно будет автоматически подставлено из ключа словаря, поэтому можно передавать
+    структуру напрямую из ответа `anki.model_info`.
 
 ### `UpdateModelStylingArgs`
 - **Используется в:** `anki.update_model_styling`.

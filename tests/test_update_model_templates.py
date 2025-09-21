@@ -156,3 +156,65 @@ async def test_update_model_templates_accepts_mappings(monkeypatch):
         }
     }
     assert result is None
+
+
+@pytest.mark.anyio
+async def test_update_model_templates_accepts_model_info_payload(monkeypatch):
+    captured = {}
+
+    async def fake_anki_call(action, params):
+        captured["action"] = action
+        captured["params"] = params
+        return {"ok": True}
+
+    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+
+    payload = {
+        "modelName": "Custom QA",
+        "templates": {
+            "Card 1": {
+                "Front": "<div>{{Question}}</div>",
+                "Back": "{{FrontSide}}\n<hr>\n<div>{{Answer}}</div>",
+            }
+        },
+    }
+
+    result = await _unwrap(update_model_templates)(payload)
+
+    assert captured["action"] == "updateModelTemplates"
+    assert captured["params"] == {
+        "model": {
+            "name": "Custom QA",
+            "templates": {
+                "Card 1": {
+                    "Front": "<div>{{Question}}</div>",
+                    "Back": "{{FrontSide}}\n<hr>\n<div>{{Answer}}</div>",
+                }
+            },
+        }
+    }
+    assert result == {"ok": True}
+
+
+@pytest.mark.anyio
+async def test_update_model_templates_rejects_conflicting_name(monkeypatch):
+    async def fake_anki_call(action, params):  # pragma: no cover - should not run
+        raise AssertionError("anki_call must not be invoked on invalid input")
+
+    monkeypatch.setattr("anki_mcp.services.anki.anki_call", fake_anki_call)
+
+    payload = {
+        "modelName": "Custom QA",
+        "templates": {
+            "Card 1": {
+                "Name": "Card 2",
+                "Front": "<div>{{Question}}</div>",
+                "Back": "{{FrontSide}}\n<hr>\n<div>{{Answer}}</div>",
+            }
+        },
+    }
+
+    with pytest.raises(ValueError) as exc:
+        await _unwrap(update_model_templates)(payload)
+
+    assert "must match template name" in str(exc.value)
