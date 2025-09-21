@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from ..compat import (
     BaseModel,
@@ -77,6 +77,64 @@ def _normalize_card_ids(value: Any) -> List[int]:
     return normalized
 
 
+def _normalize_cards_to_notes(value: Any) -> Dict[int, int]:
+    if value is None:
+        return {}
+
+    if isinstance(value, Mapping):
+        items: Iterable[Tuple[Any, Any]] = value.items()
+    else:
+        if isinstance(value, (str, bytes)):
+            raise TypeError("cards_to_notes must be a mapping or iterable of pairs")
+
+        if not isinstance(value, Iterable):
+            raise TypeError("cards_to_notes must be a mapping or iterable of pairs")
+
+        items = []  # type: ignore[assignment]
+        for index, entry in enumerate(value):
+            if isinstance(entry, Mapping):
+                if len(entry) != 1:
+                    raise ValueError(
+                        "cards_to_notes entries as mappings must contain exactly one item"
+                    )
+                entry_items = list(entry.items())
+                items.append(entry_items[0])
+            else:
+                try:
+                    card_id_raw, note_id_raw = entry  # type: ignore[misc]
+                except Exception as exc:
+                    raise ValueError(
+                        "cards_to_notes iterable entries must be pairs"
+                    ) from exc
+                items.append((card_id_raw, note_id_raw))
+
+    normalized: Dict[int, int] = {}
+    for index, (card_raw, note_raw) in enumerate(items):
+        if isinstance(card_raw, bool):
+            raise ValueError(
+                f"cards_to_notes keys must be integers, got boolean at index {index}"
+            )
+        if isinstance(note_raw, bool):
+            raise ValueError(
+                f"cards_to_notes values must be integers, got boolean at index {index}"
+            )
+        try:
+            card_id = int(card_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"cards_to_notes keys must be integers, got {card_raw!r} at index {index}"
+            ) from exc
+        try:
+            note_id = int(note_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"cards_to_notes values must be integers, got {note_raw!r} at index {index}"
+            ) from exc
+        normalized[card_id] = note_id
+
+    return normalized
+
+
 class CardsInfoArgs(BaseModel):
     card_ids: List[int] = Field(alias="cardIds", min_length=1)
 
@@ -97,6 +155,29 @@ class CardsInfoArgs(BaseModel):
 
         @validator("card_ids", pre=True)  # type: ignore[misc]
         def _normalize_ids(cls, value: Any):  # type: ignore[override]
+            return list(_normalize_card_ids(value))
+
+
+class CardsToNotesArgs(BaseModel):
+    card_ids: List[int] = Field(alias="cardIds", min_length=1)
+
+    if ConfigDict is not None:  # pragma: no branch - поддержка Pydantic v2
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover - fallback для Pydantic v1
+        class Config:
+            allow_population_by_field_name = True
+
+    if field_validator is not None:  # pragma: no branch - зависит от версии Pydantic
+
+        @field_validator("card_ids", mode="before")  # type: ignore[misc]
+        @classmethod
+        def _normalize_ids(cls, value: Any) -> List[int]:
+            return _normalize_card_ids(value)
+
+    elif validator is not None:  # pragma: no cover - Pydantic v1 fallback
+
+        @validator("card_ids", pre=True)  # type: ignore[misc]
+        def _normalize_ids(cls, value):  # type: ignore[override]
             return list(_normalize_card_ids(value))
 
 
@@ -162,4 +243,27 @@ class CardInfo(BaseModel):
             return normalized
 
 
-__all__ = ["CardInfo", "CardsInfoArgs"]
+class CardsToNotesResponse(BaseModel):
+    cards_to_notes: Dict[int, int] = Field(default_factory=dict, alias="cardsToNotes")
+
+    if ConfigDict is not None:  # pragma: no branch - поддержка Pydantic v2
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover - fallback для Pydantic v1
+        class Config:
+            allow_population_by_field_name = True
+
+    if field_validator is not None:  # pragma: no branch - зависит от версии Pydantic
+
+        @field_validator("cards_to_notes", mode="before")  # type: ignore[misc]
+        @classmethod
+        def _normalize_mapping(cls, value: Any) -> Dict[int, int]:
+            return _normalize_cards_to_notes(value)
+
+    elif validator is not None:  # pragma: no cover - Pydantic v1 fallback
+
+        @validator("cards_to_notes", pre=True)  # type: ignore[misc]
+        def _normalize_mapping(cls, value):  # type: ignore[override]
+            return dict(_normalize_cards_to_notes(value))
+
+
+__all__ = ["CardInfo", "CardsInfoArgs", "CardsToNotesArgs", "CardsToNotesResponse"]

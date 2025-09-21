@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 import uuid
+from collections.abc import Iterable
 from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 from .. import app
@@ -15,6 +16,8 @@ from ..schemas import (
     AddNotesResult,
     CardInfo,
     CardsInfoArgs,
+    CardsToNotesArgs,
+    CardsToNotesResponse,
     CreateDeckArgs,
     DeckInfo,
     DeleteDecksArgs,
@@ -527,6 +530,82 @@ async def cards_info(
             ) from exc
 
     return normalized_cards
+
+
+@app.tool(name="anki.cards_to_notes")
+async def cards_to_notes(
+    args: Union[CardsToNotesArgs, Mapping[str, Any]]
+) -> CardsToNotesResponse:
+    if isinstance(args, CardsToNotesArgs):
+        normalized = args
+    else:
+        try:
+            normalized = model_validate(CardsToNotesArgs, args)
+        except Exception as exc:
+            raise ValueError(f"Invalid cards_to_notes arguments: {exc}") from exc
+
+    raw_response = await anki_services.anki_call(
+        "cardsToNotes", {"cards": normalized.card_ids}
+    )
+
+    mapping: Dict[int, int]
+    if isinstance(raw_response, Mapping):
+        mapping = {}
+        for index, (raw_card_id, raw_note_id) in enumerate(raw_response.items()):
+            if isinstance(raw_card_id, bool):
+                raise ValueError(
+                    "cardsToNotes returned boolean card identifier"
+                )
+            if isinstance(raw_note_id, bool):
+                raise ValueError(
+                    "cardsToNotes returned boolean note identifier"
+                )
+            try:
+                card_id = int(raw_card_id)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "cardsToNotes returned non-integer card identifier"
+                ) from exc
+            try:
+                note_id = int(raw_note_id)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"cardsToNotes returned invalid note id for card {card_id}: {raw_note_id!r}"
+                ) from exc
+            mapping[card_id] = note_id
+    elif isinstance(raw_response, Iterable) and not isinstance(
+        raw_response, (str, bytes)
+    ):
+        try:
+            note_candidates = list(raw_response)
+        except TypeError as exc:  # pragma: no cover - safety guard
+            raise ValueError("cardsToNotes response must be iterable") from exc
+        if len(note_candidates) != len(normalized.card_ids):
+            raise ValueError(
+                "cardsToNotes response length does not match requested card ids"
+            )
+        mapping = {}
+        for index, raw_note_id in enumerate(note_candidates):
+            if isinstance(raw_note_id, bool):
+                raise ValueError(
+                    f"cardsToNotes returned boolean note id at index {index}"
+                )
+            try:
+                note_id = int(raw_note_id)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"cardsToNotes returned non-integer note id at index {index}: {raw_note_id!r}"
+                ) from exc
+            mapping[normalized.card_ids[index]] = note_id
+    else:
+        raise ValueError("cardsToNotes response must be a mapping or list of note ids")
+
+    try:
+        return model_validate(
+            CardsToNotesResponse, {"cards_to_notes": mapping}
+        )
+    except Exception as exc:  # pragma: no cover - should not trigger with sanitized mapping
+        raise ValueError(f"cardsToNotes response could not be validated: {exc}") from exc
 
 
 @app.tool(name="anki.get_media")

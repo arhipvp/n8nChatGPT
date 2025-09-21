@@ -8,7 +8,7 @@ from .decks import (
     ListDecksResponse,
     RenameDeckArgs,
 )
-from .cards import CardInfo, CardsInfoArgs
+from .cards import CardInfo, CardsInfoArgs, CardsToNotesArgs, CardsToNotesResponse
 from .images import ImageSpec
 from .media import DeleteMediaArgs as _DeleteMediaArgs
 from .media import MediaRequest, MediaResponse, StoreMediaArgs
@@ -51,6 +51,8 @@ ListTagsResponse = _ListTagsResponse
 __all__ = [
     "CardInfo",
     "CardsInfoArgs",
+    "CardsToNotesArgs",
+    "CardsToNotesResponse",
     "CardTemplateSpec",
     "CreateModelArgs",
     "CreateModelResult",
