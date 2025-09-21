@@ -68,7 +68,7 @@
 - `anki.list_models` — перечисляет доступные модели и помогает выбрать нужную структуру. [Подробнее](docs/tools.md#инструмент-anki-list_models)
 - `anki.create_model` — создаёт пользовательскую модель с заданными полями и шаблонами. [Подробнее](docs/tools.md#ankicreate_model)
 - `anki.update_model_templates` — обновляет HTML-шаблоны карточек в модели. [Подробнее](docs/tools.md#ankiupdate_model_templates)
-- `anki.update_model_styling` — изменяет CSS модели, чтобы поддерживать оформление карточек. [Подробнее](docs/tools.md#updatemodelstylingargs)
+- `anki.update_model_styling` — изменяет CSS модели, чтобы поддерживать оформление карточек. [Подробнее](docs/tools.md#ankiupdate_model_styling)
 
 **Медиа**
 - `anki.store_media` — сохраняет файлы в `collection.media`, возвращая результат AnkiConnect. [Подробнее](docs/tools.md#инструмент-anki-store_media)
