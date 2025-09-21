@@ -129,6 +129,32 @@ def ensure_img_tag(existing: str, filename: str) -> str:
     return f"{trimmed}\n\n{tag}"
 
 
+ANCHOR_TAG_RE = re.compile(r"<a\b[^>]*>.*?</a>", re.IGNORECASE | re.DOTALL)
+URL_RE = re.compile(r"(?P<url>https?://[^\s<>\"']+)", re.IGNORECASE)
+
+
+def auto_link_urls(text: str) -> str:
+    if not text:
+        return text or ""
+
+    anchors = [match.span() for match in ANCHOR_TAG_RE.finditer(text)]
+    if not anchors:
+        return URL_RE.sub(
+            lambda match: f'<a href="{match.group("url")}">{match.group("url")}</a>',
+            text,
+        )
+
+    def _replace(match: re.Match[str]) -> str:
+        start = match.start()
+        for span_start, span_end in anchors:
+            if span_start <= start < span_end:
+                return match.group("url")
+        url = match.group("url")
+        return f'<a href="{url}">{url}</a>'
+
+    return URL_RE.sub(_replace, text)
+
+
 DATA_URL_RE = re.compile(r"^data:image/([a-zA-Z0-9+.\-]+);base64,(.+)$", re.IGNORECASE)
 DATA_URL_INLINE_RE = re.compile(
     r"data:image/([a-zA-Z0-9+.\-]+);base64,([a-zA-Z0-9+/=]+)", re.IGNORECASE
