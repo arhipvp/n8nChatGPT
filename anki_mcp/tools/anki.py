@@ -30,6 +30,7 @@ from ..schemas import (
     CreateModelArgs,
     CreateModelResult,
     ListModelsResponse,
+    ListTagsResponse,
     UpdateModelStylingArgs,
     UpdateModelTemplatesArgs,
     InvokeActionArgs,
@@ -305,6 +306,50 @@ async def list_decks() -> List[DeckInfo]:
 
     response = ListDecksResponse(decks=deck_infos)
     return response.decks
+
+
+@app.tool(name="anki.list_tags")
+async def list_tags() -> ListTagsResponse:
+    try:
+        raw_tags = await anki_services.anki_call("getTags", {})
+    except RuntimeError as exc:
+        raise ValueError(f"AnkiConnect error: {exc}") from exc
+
+    if raw_tags is None:
+        tags: List[str] = []
+    else:
+        if isinstance(raw_tags, (str, bytes)):
+            raise ValueError("getTags response must be a sequence of strings")
+
+        if isinstance(raw_tags, Mapping):
+            raise ValueError("getTags response must be a sequence of strings")
+
+        try:
+            iterator = iter(raw_tags)
+        except TypeError as exc:  # pragma: no cover - защитный хендлинг
+            raise ValueError("getTags response must be a sequence of strings") from exc
+
+        tags = []
+        for index, tag in enumerate(iterator):
+            if not isinstance(tag, str):
+                raise ValueError(
+                    f"getTags returned non-string value at index {index}: {tag!r}"
+                )
+
+            stripped = tag.strip()
+            if not stripped:
+                raise ValueError(f"getTags returned empty tag at index {index}")
+
+            tags.append(stripped)
+
+    unique: Dict[str, str] = {}
+    for name in tags:
+        key = name.casefold()
+        unique.setdefault(key, name)
+
+    unique_sorted = sorted(unique.values(), key=lambda name: (name.casefold(), name))
+
+    return ListTagsResponse(tags=unique_sorted)
 
 
 @app.tool(name="anki.create_deck")
